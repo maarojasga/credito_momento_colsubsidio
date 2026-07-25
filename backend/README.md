@@ -83,3 +83,52 @@ Produce en DuckDB (~10 s, muy por debajo del presupuesto de 3 min):
 Todo en `timing/params.py` es la verdad de campo: la matriz de transición de
 estados, las tasas Poisson por servicio, la estacionalidad y los coeficientes
 del hazard. Cambiar un número ahí cambia el mundo, no el modelo.
+
+## Pipeline completo (precálculo de ofertas)
+
+Una vez sembrados los datos, el pipeline corre los cuatro motores y precalcula
+las ofertas + manifiestos. En vivo solo correría el envío del mensaje.
+
+```bash
+PYTHONPATH=src python scripts/build_ofertas.py \
+    --db data/synthetic/momento.duckdb --as-of 2026-07-01
+```
+
+Encadena: enriquecimiento (señales con fuente/confianza/base legal) → hazard en
+tiempo discreto + extracción de ventana → reglas duras → scorecard aditivo →
+narrativa validada → política de canal → manifiesto de trazabilidad. Salida
+típica (~19 s para 2.000 sujetos):
+
+```
+Enriquecimiento: 22,000 señales materializadas
+Hazard ajustado sobre 44,283 filas person-period
+Cobertura vs contacto (métrica de pitch §4.5):
+  contactando 20% -> capturamos 75% de eventos
+1,908 ofertas precalculadas · 92 no elegibles
+```
+
+## API
+
+```bash
+PYTHONPATH=src MOMENTO_DB=data/synthetic/momento.duckdb \
+    uvicorn momento.api:app --reload
+```
+
+| Endpoint | Devuelve |
+|---|---|
+| `GET /health` | estado y ruta de la base |
+| `GET /stats` | KPIs agregados (productos, canales, monto promedio) |
+| `GET /metrics` | cobertura vs contacto (§4.5) y coeficientes del hazard |
+| `GET /ofertas?limit&offset&producto` | lista paginada para el operador |
+| `GET /subjects/{id}/oferta` | oferta del sujeto |
+| `GET /subjects/{id}/manifest` | manifiesto de trazabilidad descargable |
+
+## Puesta en marcha completa
+
+```bash
+cd backend && pip install -e .
+PYTHONPATH=src python scripts/seed_synthetic.py     # 1. datos sintéticos
+PYTHONPATH=src python scripts/build_ofertas.py      # 2. precálculo de ofertas
+PYTHONPATH=src uvicorn momento.api:app --reload     # 3. API en :8000
+pytest tests/                                        # (opcional) 14 tests
+```

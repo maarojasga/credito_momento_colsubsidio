@@ -1,35 +1,78 @@
-// Espejo de las entidades del backend (backend/src/momento/schemas.py).
+// Espejo de las respuestas de la API (backend/src/momento/api.py).
 
-export type Categoria = "A" | "B" | "C" | "D";
-
-export type BaseLegal = "publica" | "consentida" | "inferida" | "sintetica";
-
-export interface Contribucion {
+export interface SenalTop {
   key: string;
   value: number | string | boolean;
   puntos: number;
   source_id: string;
 }
 
-export interface Ventana {
-  subject_id: string;
-  producto: string;
-  inicio: string; // ISO date
-  fin: string; // ISO date
-  hazard_pico: number;
-  hazard_acumulado_ventana: number;
-}
-
 export interface Oferta {
   subject_id: string;
   producto: string;
+  nombre_producto: string;
   monto: number;
   plazo_meses: number;
-  ventana: Ventana;
   canal: string;
-  hora_envio: string; // ISO time
+  hora_envio: string;
   puntos_scorecard: number;
-  top_senales: Contribucion[]; // exactamente 3
+  ventana_inicio: string;
+  ventana_fin: string;
+  hazard_pico: number;
   razon_texto: string;
+  narrativa_origen: string;
+  top_senales: SenalTop[];
   manifest_hash: string;
+}
+
+export interface Stats {
+  total_ofertas: number;
+  productos: Record<string, number>;
+  canales: Record<string, number>;
+  monto_promedio: number;
+}
+
+export interface PuntoCobertura {
+  contacto: number;
+  cobertura: number;
+}
+
+export interface Metrics {
+  cobertura_contacto: PuntoCobertura[];
+  hazard_coeficientes: {
+    modelo: string;
+    n_obs: number;
+    coeficientes: Record<string, number>;
+    odds_ratio: Record<string, number>;
+  };
+}
+
+export interface ListaOfertas {
+  total: number;
+  items: Oferta[];
+}
+
+export type BaseLegal = "publica" | "consentida" | "inferida" | "sintetica";
+
+export interface SenalManifiesto {
+  key: string;
+  value: number | string | boolean;
+  puntos: number;
+  source_id: string;
+  provider_version: string | null;
+  confidence: number | null;
+  base_legal: BaseLegal | null;
+  observed_at: string | null;
+}
+
+export interface Manifiesto {
+  manifest_hash: string;
+  subject_id: string;
+  as_of: string;
+  senales: SenalManifiesto[];
+  reglas_evaluadas: { regla: string }[];
+  scorecard: { version: string; puntos_totales: number; aportes: { key: string; puntos: number }[] };
+  hazard: { modelo: string; ventana: [string, string]; hazard_pico: number };
+  narrativa: { origen: string; validador: string };
+  entrega: { canal: string; hora: string; estado: string };
 }

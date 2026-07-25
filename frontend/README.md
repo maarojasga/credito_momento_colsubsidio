@@ -18,26 +18,34 @@ React 18 · Vite · TypeScript.
 | **Operador** | `/operador` | Área de riesgo / negocio | Lote de sujetos, ventana por sujeto, tres señales con puntos y fuente, descarga del manifiesto de trazabilidad. |
 | **Afiliado** | `/afiliado/:subjectId` | El afiliado | La oferta (producto, monto, plazo), la ventana, el canal y la narrativa validada. |
 
+## Identidad de marca
+
+Tokens en `src/styles/theme.css` (Colsubsidio):
+
+- amarillo `#ffd000` — acentos, resaltados, CTA
+- azul `#0067b1` — encabezados, estructura, badges de canal
+- grafito `#575756` — texto
+
 ## Estructura
 
 ```
 frontend/
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-├── index.html
+├── package.json · vite.config.ts · tsconfig.json · index.html
 └── src/
-    ├── main.tsx
-    ├── App.tsx
-    ├── api/client.ts          # cliente de la API FastAPI
-    ├── types.ts               # espejo de las entidades del backend
+    ├── main.tsx · App.tsx        # router (/operador, /afiliado/:id)
+    ├── api/client.ts             # cliente de la API FastAPI
+    ├── types.ts                  # espejo de las respuestas del backend
+    ├── utils.ts                  # formato de moneda, etiquetas de señales
+    ├── styles/theme.css          # sistema de diseño Colsubsidio
     ├── pages/
-    │   ├── OperadorView.tsx    # vista operador
-    │   └── AfiliadoView.tsx    # vista afiliado
+    │   ├── OperadorView.tsx       # KPIs + métrica de pitch + tabla de ofertas
+    │   └── AfiliadoView.tsx       # oferta + ventana + señales + trazabilidad
     └── components/
-        ├── VentanaChart.tsx    # hazard mensual + ventana de 60 días
-        ├── SenalesTop.tsx      # las tres señales con puntos y fuente
-        └── ManifestDownload.tsx # descarga del manifiesto de trazabilidad
+        ├── Logo.tsx · AppBar.tsx
+        ├── CoberturaChart.tsx     # cobertura de eventos vs volumen de contacto
+        ├── VentanaChart.tsx       # línea de tiempo con la ventana de 60 días
+        ├── SenalesTop.tsx         # las tres señales con puntos y fuente
+        └── ManifestDownload.tsx   # descarga del manifiesto de trazabilidad
 ```
 
 ## Correr

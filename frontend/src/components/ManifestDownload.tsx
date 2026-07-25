@@ -5,8 +5,13 @@ import { getManifestUrl } from "../api/client";
 
 export default function ManifestDownload({ subjectId }: { subjectId: string }) {
   return (
-    <a href={getManifestUrl(subjectId)} download={`manifest_${subjectId}.json`}>
-      Descargar manifiesto de trazabilidad
+    <a
+      className="btn amarillo"
+      href={getManifestUrl(subjectId)}
+      download={`manifiesto_${subjectId}.json`}
+      style={{ display: "inline-block" }}
+    >
+      ⬇ Descargar manifiesto de trazabilidad
     </a>
   );
 }

@@ -1,26 +1,55 @@
 # Reglas duras de elegibilidad y capacidad de pago.
 # Estas reglas NO se aprenden: un modelo nunca puede aprobar lo que la norma
 # prohíbe. El scoring solo ordena dentro del conjunto elegible.
+#
+# Formato: cada condición es {key, op, valor}. Operadores soportados:
+#   >=  <=  >  <  ==  !=
+# Las acciones de monto son un valor entero o una expresión "monto_max_expr"
+# evaluada sobre features numéricas (solo multiplicación por constante).
 
+# Requisitos que aplican a todos los productos.
 requisitos_globales:
-  - antiguedad_empleo_meses: ">= 2"
-  - antiguedad_empleo_meses_si_contrato_no_indefinido: ">= 6"
+  - descripcion: "antigüedad laboral mínima"
+    key: antiguedad_empleo_meses
+    op: ">="
+    valor: 2
+  - descripcion: "antigüedad mínima si el contrato no es indefinido"
+    key: antiguedad_empleo_meses
+    op: ">="
+    valor: 6
+    solo_si_contrato_no_indefinido: true
 
 productos:
   cupo_rotativo:
-    monto_min: 150_000
-    monto_max: 5_000_000
+    nombre: "Cupo rotativo"
+    descripcion: "Cupo de libre destinación, revolvente."
+    monto_min: 150000
+    monto_max: 5000000
+    plazo_meses: 36
 
   rotativo_seguros_impuestos:
-    monto_max: 5_000_000
-    plazo_max_meses: 11
+    nombre: "Rotativo para seguros e impuestos"
+    descripcion: "Cupo de corto plazo para obligaciones puntuales."
+    monto_min: 150000
+    monto_max: 5000000
+    plazo_meses: 11
 
   libranza:
+    nombre: "Crédito por libranza"
+    descripcion: "Descuento por nómina; capacidad según ingreso."
+    plazo_meses: 24
+    # Reglas de capacidad: la primera que se cumple fija el monto_max.
     reglas_capacidad:
-      - si: ingreso_smmlv <= 1
-        entonces: monto_max = 1_500_000
-      - si: ingreso_mensual >= 10_000_000
-        entonces: monto_max = 3 * ingreso_mensual
+      - si: {key: ingreso_smmlv, op: "<=", valor: 1}
+        monto_max: 1500000
+      - si: {key: ingreso_mensual, op: ">=", valor: 10000000}
+        monto_max_expr: "3 * ingreso_mensual"
+    monto_max_default: 3000000
 
   credito_mujer:
-    requiere: sexo == "F"
+    nombre: "Crédito Mujer"
+    descripcion: "Línea con condiciones preferenciales para mujeres."
+    requiere: {key: sexo, op: "==", valor: "F"}
+    monto_min: 300000
+    monto_max: 4000000
+    plazo_meses: 24

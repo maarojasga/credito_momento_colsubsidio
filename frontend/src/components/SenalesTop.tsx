@@ -1,16 +1,27 @@
 // Las tres señales principales con su valor, puntos y fuente.
 
-import type { Contribucion } from "../types";
+import type { SenalTop } from "../types";
+import { labelSenal } from "../utils";
 
-export default function SenalesTop({ senales }: { senales: Contribucion[] }) {
+export default function SenalesTop({ senales }: { senales: SenalTop[] }) {
   return (
-    <ul>
+    <div>
       {senales.map((s) => (
-        <li key={s.key}>
-          <strong>{s.key}</strong>: {String(s.value)} · {s.puntos > 0 ? "+" : ""}
-          {s.puntos} pts · <em>{s.source_id}</em>
-        </li>
+        <div className="senal" key={s.key}>
+          <div className={`puntos ${s.puntos >= 0 ? "pos" : "neg"}`}>
+            {s.puntos >= 0 ? "+" : ""}
+            {s.puntos}
+          </div>
+          <div className="info">
+            <div className="k">
+              {labelSenal(s.key)}: {String(s.value)}
+            </div>
+            <div className="src">
+              fuente: <span className="mono">{s.source_id}</span>
+            </div>
+          </div>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }

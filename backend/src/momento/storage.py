@@ -64,9 +64,32 @@ CREATE TABLE IF NOT EXISTS signals (
     ttl_days         INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS ofertas (
+    subject_id       TEXT,
+    producto         TEXT,
+    nombre_producto  TEXT,
+    monto            BIGINT,
+    plazo_meses      INTEGER,
+    canal            TEXT,
+    hora_envio       TEXT,
+    puntos_scorecard INTEGER,
+    ventana_inicio   DATE,
+    ventana_fin      DATE,
+    hazard_pico      DOUBLE,
+    razon_texto      TEXT,
+    narrativa_origen TEXT,
+    top_senales      JSON,
+    manifest_hash    TEXT
+);
+
 CREATE TABLE IF NOT EXISTS manifests (
     manifest_hash TEXT PRIMARY KEY,
     payload       JSON
+);
+
+CREATE TABLE IF NOT EXISTS metricas (
+    clave TEXT PRIMARY KEY,
+    valor JSON
 );
 """
 
@@ -105,3 +128,19 @@ def load_synthetic(con: duckdb.DuckDBPyConnection, ds: SyntheticDataset, *, rese
     _insert(con, "subjects", ds.subjects)
     _insert(con, "eventos", ds.eventos)
     _insert(con, "person_period", ds.person_period)
+
+
+def guardar_ofertas(con: duckdb.DuckDBPyConnection, ofertas: list[dict],
+                    manifests: list[dict]) -> None:
+    """Reemplaza las ofertas y manifiestos precalculados."""
+    con.execute("DELETE FROM ofertas")
+    con.execute("DELETE FROM manifests")
+    _insert(con, "ofertas", ofertas)
+    _insert(con, "manifests", manifests)
+
+
+def guardar_metrica(con: duckdb.DuckDBPyConnection, clave: str, valor) -> None:
+    import json as _json
+
+    con.execute("INSERT OR REPLACE INTO metricas (clave, valor) VALUES (?, ?)",
+                [clave, _json.dumps(valor, ensure_ascii=False)])

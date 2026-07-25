@@ -30,12 +30,33 @@ credito_momento_colsubsidio/
 3. **La explicación se calcula, no se genera.** Scorecard aditivo; el LLM solo
    redacta lo que ya se decidió, con validador determinista.
 
+## Estado
+
+Pipeline **end-to-end funcional** sobre datos sintéticos (no hay dataset real de
+afiliados; ver `docs/especificacion.md` §4.1):
+
+- ✅ Generador sintético con verdad de campo → DuckDB (2.000 sujetos, ~470k eventos)
+- ✅ Enriquecimiento: señales con fuente, versión, confianza y base legal
+- ✅ Hazard en tiempo discreto (recupera la verdad de campo) + ventana de 60 días
+- ✅ Reglas duras declarativas + scorecard aditivo + narrativa validada
+- ✅ Política de canal + manifiesto de trazabilidad descargable
+- ✅ API FastAPI + frontend React con identidad Colsubsidio (operador + afiliado)
+
+Métrica de pitch obtenida: **contactando el 20% capturamos el 75%** de las
+necesidades reales de crédito.
+
+Pendiente de conectar a fuentes reales (día 1 del plan): capas geo (DANE, catastro),
+RUES, microdato IEFIC y el envío en vivo por WhatsApp (plantilla a aprobación de Meta).
+
 ## Arrancar
 
 ```bash
-# Backend
-cd backend && pip install -e . && uvicorn momento.api:app --reload
+# Backend — datos + pipeline + API
+cd backend && pip install -e .
+PYTHONPATH=src python scripts/seed_synthetic.py     # datos sintéticos en DuckDB
+PYTHONPATH=src python scripts/build_ofertas.py      # precálculo de ofertas
+PYTHONPATH=src uvicorn momento.api:app --reload     # API en :8000
 
 # Frontend (en otra terminal)
-cd frontend && npm install && npm run dev
+cd frontend && npm install && npm run dev           # UI en :5173 (proxy a :8000)
 ```
