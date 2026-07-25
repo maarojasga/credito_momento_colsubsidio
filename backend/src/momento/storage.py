@@ -106,6 +106,10 @@ GROUP BY subject_id, key;
 
 
 def connect(path: str | Path = "momento.duckdb") -> duckdb.DuckDBPyConnection:
+    # DuckDB no crea directorios padre; los aseguramos aquí.
+    p = Path(path)
+    if str(path) != ":memory:" and p.parent != Path(""):
+        p.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(path))
     con.execute(DDL)
     return con
