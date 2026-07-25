@@ -1,0 +1,26 @@
+# Reglas duras de elegibilidad y capacidad de pago.
+# Estas reglas NO se aprenden: un modelo nunca puede aprobar lo que la norma
+# prohíbe. El scoring solo ordena dentro del conjunto elegible.
+
+requisitos_globales:
+  - antiguedad_empleo_meses: ">= 2"
+  - antiguedad_empleo_meses_si_contrato_no_indefinido: ">= 6"
+
+productos:
+  cupo_rotativo:
+    monto_min: 150_000
+    monto_max: 5_000_000
+
+  rotativo_seguros_impuestos:
+    monto_max: 5_000_000
+    plazo_max_meses: 11
+
+  libranza:
+    reglas_capacidad:
+      - si: ingreso_smmlv <= 1
+        entonces: monto_max = 1_500_000
+      - si: ingreso_mensual >= 10_000_000
+        entonces: monto_max = 3 * ingreso_mensual
+
+  credito_mujer:
+    requiere: sexo == "F"

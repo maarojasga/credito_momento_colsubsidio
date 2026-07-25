@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Datos crudos y artefactos (versionar solo la estructura)
+data/raw/*
+data/donor/*
+data/synthetic/*
+!data/**/.gitkeep
+*.duckdb
+*.parquet
+.cache/
+
+# Notebooks
+.ipynb_checkpoints/

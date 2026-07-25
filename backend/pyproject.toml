@@ -1,0 +1,34 @@
+[project]
+name = "momento"
+version = "0.1.0"
+description = "Motor de crédito MOMENTO — reto Colsubsidio x 30X"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "duckdb>=0.10",
+    "polars>=0.20",
+    "geopandas>=0.14",
+    "statsmodels>=0.14",
+    "scikit-learn>=1.4",
+    "optbinning>=0.19",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+hmm = ["hmmlearn>=0.3"]
+dev = ["pytest>=8.0", "ruff>=0.3", "jupyter>=1.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
