@@ -11,6 +11,67 @@ Vercel (frontend estático)  ──/api/*──►  Cloud Run (FastAPI + DuckDB 
 
 ---
 
+## 0. Todo desde Cloud Shell (recomendado)
+
+Cloud Shell (icono `>_` arriba a la derecha en console.cloud.google.com) ya trae
+`gcloud`, `git`, `docker` y `node`. El deploy usa **Cloud Build**, así que no
+necesitas Docker local.
+
+```bash
+# 1. Proyecto
+gcloud config set project TU_PROJECT_ID
+
+# 2. Traer el código (si el repo es privado, autentícate antes: gh auth login)
+git clone https://github.com/maarojasga/credito_momento_colsubsidio.git
+cd credito_momento_colsubsidio
+git checkout claude/folder-structure-front-back-vv7d6w
+
+# 3. Habilitar servicios (una sola vez por proyecto)
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+
+# 4. Desplegar el backend (Cloud Build compila el Dockerfile)
+cd backend
+gcloud run deploy momento-api \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --memory 512Mi --port 8080
+#   Si pregunta por crear un repo de Artifact Registry, responde "y".
+#   Al terminar imprime la Service URL: https://momento-api-XXXX-uc.a.run.app
+
+# 5. Probar
+SERVICE_URL=$(gcloud run services describe momento-api --region us-central1 --format='value(status.url)')
+curl "$SERVICE_URL/health"
+curl "$SERVICE_URL/stats"
+```
+
+### Frontend desde el mismo Cloud Shell
+
+**Opción A — Vercel CLI** (necesitas un token de vercel.com/account/tokens):
+
+```bash
+cd ../frontend
+sed -i "s#https://momento-api-XXXXXXXX-uc.a.run.app#$SERVICE_URL#" vercel.json
+npx vercel --prod --token TU_TOKEN_VERCEL --yes
+```
+
+**Opción B — todo en GCP con Firebase Hosting** (sin salir de Google):
+
+```bash
+cd ../frontend
+npm install
+echo "VITE_API_URL=$SERVICE_URL" > .env.production   # CORS ya está abierto
+npm run build
+npx firebase-tools login --no-localhost
+npx firebase-tools init hosting   # public: dist · SPA: sí · no sobreescribir index.html
+npx firebase-tools deploy --only hosting
+```
+
+Con Firebase el navegador va directo a Cloud Run (usa CORS, ya habilitado); con
+Vercel queda en el mismo origen vía el proxy de `vercel.json`.
+
+---
+
 ## 1. Backend en Cloud Run
 
 Archivos ya incluidos: `backend/Dockerfile` (multi-stage), `backend/.dockerignore`,
