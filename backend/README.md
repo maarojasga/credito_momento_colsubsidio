@@ -59,3 +59,27 @@ cd backend
 pip install -e .
 uvicorn momento.api:app --reload
 ```
+
+## Datos sintéticos (Motor 2 — verdad de campo)
+
+No hay dataset real de afiliados: la población, sus 36 meses de eventos y el
+evento de necesidad de crédito se generan con un proceso **conocido**
+(`timing/params.py`), para poder medir si el modelo lo recupera.
+
+```bash
+cd backend
+PYTHONPATH=src python scripts/seed_synthetic.py --n 2000 --seed 42 \
+    --out data/synthetic/momento.duckdb
+```
+
+Produce en DuckDB (~10 s, muy por debajo del presupuesto de 3 min):
+
+- `subjects` — afiliados con categoría, ingreso, antigüedad, hogar, geo.
+- `eventos` — ~470k eventos de servicio con estacionalidad real (matrículas
+  nov–ene, turismo dic/jun, droguería plana).
+- `person_period` — panel discreto `(subject_id, t_mes)` con el `hazard_real` y
+  el label `evento`, listo para ajustar el modelo de tiempo discreto (§4.3).
+
+Todo en `timing/params.py` es la verdad de campo: la matriz de transición de
+estados, las tasas Poisson por servicio, la estacionalidad y los coeficientes
+del hazard. Cambiar un número ahí cambia el mundo, no el modelo.
