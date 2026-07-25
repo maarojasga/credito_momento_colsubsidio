@@ -1,0 +1,14 @@
+# Dependencias de la imagen (runtime + ingesta en caliente vía /cargar-excel).
+duckdb>=0.10
+polars>=0.20
+pyarrow>=15.0
+numpy>=1.26
+pandas>=2.0
+statsmodels>=0.14
+scipy>=1.11
+pyyaml>=6.0
+pydantic[email]>=2.6
+openpyxl>=3.1
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9

@@ -26,3 +26,23 @@ export const getManifest = (subjectId: string) =>
 
 export const getManifestUrl = (subjectId: string) =>
   `${BASE}/subjects/${subjectId}/manifest`;
+
+export const plantillaUrl = () => `${BASE}/plantilla`;
+
+export interface ResultadoCarga {
+  ok: boolean;
+  afiliados: number;
+  ofertas: number;
+  no_elegibles: number;
+}
+
+export async function cargarExcel(file: File): Promise<ResultadoCarga> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/cargar-excel`, { method: "POST", body: form });
+  if (!res.ok) {
+    const detalle = await res.json().catch(() => ({}));
+    throw new Error((detalle as { detail?: string }).detail ?? `${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<ResultadoCarga>;
+}

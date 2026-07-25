@@ -86,8 +86,14 @@ del hazard. Cambiar un número ahí cambia el mundo, no el modelo.
 
 ## Cargar afiliados desde Excel (datos reales)
 
-Para correr con afiliados reales en vez de los datos de demo, usa un Excel. La
-plantilla `afiliados.xlsx` se genera con:
+Dos formas: **por la UI** (recomendado en producción) o por **CLI** (local).
+
+- **UI**: la API arranca sin datos; en la vista operador usa *Descargar
+  plantilla* y luego *Subir Excel*. El endpoint `POST /cargar-excel` corre el
+  pipeline en caliente y reemplaza los datos. `GET /plantilla` sirve el ejemplo.
+- **CLI** (local): genera y carga la plantilla como se muestra abajo.
+
+La plantilla `afiliados.xlsx` se genera con:
 
 ```bash
 PYTHONPATH=src python scripts/crear_plantilla_excel.py
