@@ -41,6 +41,9 @@ afiliados; ver `docs/especificacion.md` §4.1):
 - ✅ Reglas duras declarativas + scorecard aditivo + narrativa validada
 - ✅ Política de canal + manifiesto de trazabilidad descargable
 - ✅ API FastAPI + frontend React con identidad Colsubsidio (operador + afiliado)
+- ✅ Copiloto de IA (Gemini 2.5 Flash): narrativa al afiliado, chat de
+  explicabilidad sobre el manifiesto y resumen ejecutivo del lote — grounded y
+  con validador anti-alucinación
 
 Métrica de pitch obtenida: **contactando el 20% capturamos el 75%** de las
 necesidades reales de crédito.

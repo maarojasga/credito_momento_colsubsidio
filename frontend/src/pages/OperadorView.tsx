@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import AppBar from "../components/AppBar";
 import CargarExcel from "../components/CargarExcel";
 import CoberturaChart from "../components/CoberturaChart";
+import ResumenIA from "../components/ResumenIA";
 import { getMetrics, getOfertas, getStats } from "../api/client";
 import type { ListaOfertas, Metrics, Stats } from "../types";
 import { fmtMes, fmtMoney } from "../utils";
@@ -80,6 +81,10 @@ export default function OperadorView() {
                 <CoberturaChart curva={metrics.cobertura_contacto} />
               </div>
             )}
+
+            <div style={{ marginTop: 18 }}>
+              <ResumenIA />
+            </div>
 
             <div className="seccion-titulo">
               <h2>Ofertas del lote</h2>

@@ -17,6 +17,7 @@ import duckdb
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 # Ruta ESCRIBIBLE de la base (en Cloud Run: /tmp). Local: data/synthetic/.
 DB_PATH = os.environ.get("MOMENTO_DB", "data/synthetic/momento.duckdb")
@@ -153,6 +154,95 @@ def get_manifest(subject_id: str) -> dict:
         return json.loads(payload[0])
     finally:
         con.close()
+
+
+# --- Copiloto de IA (Gemini) --------------------------------------------------
+
+class PreguntaCopiloto(BaseModel):
+    subject_id: str
+    pregunta: str | None = None
+
+
+@app.get("/copiloto/estado")
+def copiloto_estado() -> dict:
+    from momento.copiloto import GEMINI_MODEL, disponible
+    return {"disponible": disponible(), "modelo": GEMINI_MODEL}
+
+
+@app.get("/subjects/{subject_id}/narrativa-ia")
+def narrativa_ia_endpoint(subject_id: str) -> dict:
+    """Genera la narrativa de la oferta con IA (validada), o cae a plantilla."""
+    from momento.copiloto import narrativa_ia
+
+    con = _open_ro()
+    if con is None:
+        raise HTTPException(404, "Aún no hay datos cargados")
+    try:
+        row = con.execute(
+            "SELECT producto, monto, plazo_meses, top_senales FROM ofertas WHERE subject_id = ?",
+            [subject_id],
+        ).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        raise HTTPException(404, "Sujeto sin oferta")
+
+    producto, monto, plazo, top_json = row
+    payload = {
+        "producto": producto,
+        "monto": monto,
+        "plazo_meses": plazo,
+        "senales": json.loads(top_json) if top_json else [],
+    }
+    texto, origen = narrativa_ia(payload)
+    return {"texto": texto, "origen": origen, "validado": True}
+
+
+@app.post("/copiloto/explicar")
+def copiloto_explicar(q: PreguntaCopiloto) -> dict:
+    """Responde una pregunta del operador anclada al manifiesto de la oferta."""
+    from momento.copiloto import explicar
+
+    con = _open_ro()
+    if con is None:
+        raise HTTPException(404, "Aún no hay datos cargados")
+    try:
+        h = con.execute("SELECT manifest_hash FROM ofertas WHERE subject_id = ?",
+                        [q.subject_id]).fetchone()
+        if h is None:
+            raise HTTPException(404, "Sujeto sin oferta")
+        payload = con.execute("SELECT payload FROM manifests WHERE manifest_hash = ?",
+                              [h[0]]).fetchone()
+    finally:
+        con.close()
+    manifiesto = json.loads(payload[0])
+    return {"respuesta": explicar(manifiesto, q.pregunta)}
+
+
+@app.get("/copiloto/resumen")
+def copiloto_resumen() -> dict:
+    """Resumen ejecutivo del lote generado con IA."""
+    from momento.copiloto import resumen_lote
+
+    con = _open_ro()
+    if con is None or not _tiene_ofertas(con):
+        if con:
+            con.close()
+        return {"resumen": "Aún no hay ofertas cargadas."}
+    try:
+        total = con.execute("SELECT count(*) FROM ofertas").fetchone()[0]
+        productos = dict(con.execute(
+            "SELECT nombre_producto, count(*) FROM ofertas GROUP BY 1 ORDER BY 2 DESC").fetchall())
+        canales = dict(con.execute("SELECT canal, count(*) FROM ofertas GROUP BY 1").fetchall())
+        monto_prom = con.execute("SELECT round(avg(monto)) FROM ofertas").fetchone()[0]
+        ventanas = dict(con.execute(
+            "SELECT strftime(ventana_inicio, '%Y-%m') m, count(*) FROM ofertas "
+            "GROUP BY 1 ORDER BY 1").fetchall())
+    finally:
+        con.close()
+    agregados = {"total_ofertas": total, "productos": productos, "canales": canales,
+                 "monto_promedio": monto_prom, "ventanas_por_mes": ventanas}
+    return {"resumen": resumen_lote(agregados), "agregados": agregados}
 
 
 @app.get("/plantilla")

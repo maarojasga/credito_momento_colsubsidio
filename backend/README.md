@@ -154,6 +154,19 @@ PYTHONPATH=src MOMENTO_DB=data/synthetic/momento.duckdb \
 | `GET /ofertas?limit&offset&producto` | lista paginada para el operador |
 | `GET /subjects/{id}/oferta` | oferta del sujeto |
 | `GET /subjects/{id}/manifest` | manifiesto de trazabilidad descargable |
+| `POST /cargar-excel` | sube un Excel de afiliados y corre el pipeline |
+| `GET /plantilla` | descarga la plantilla de Excel |
+| `GET /subjects/{id}/narrativa-ia` | narrativa de la oferta con Gemini (validada) |
+| `POST /copiloto/explicar` | responde preguntas ancladas al manifiesto |
+| `GET /copiloto/resumen` | resumen ejecutivo del lote con IA |
+
+### Copiloto de IA (Gemini 2.5 Flash)
+
+`copiloto.py` conecta Gemini para tres cosas: narrativa al afiliado, chat de
+explicabilidad sobre el manifiesto, y resumen ejecutivo del lote. Todo va
+**grounded** al payload/manifiesto y la narrativa pasa por el validador
+determinista (no puede introducir cifras ajenas). Se activa con la variable de
+entorno `GEMINI_API_KEY`; sin ella, degrada a plantilla/aviso.
 
 ## Puesta en marcha completa
 

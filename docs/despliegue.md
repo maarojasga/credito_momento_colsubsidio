@@ -127,6 +127,28 @@ curl https://momento-api-XXXXXXXX-uc.a.run.app/stats
 
 ---
 
+## 1.5. Habilitar el copiloto de IA (Gemini)
+
+El copiloto (narrativa con IA, chat de explicabilidad y resumen del lote) usa
+**Gemini 2.5 Flash**. Sin clave, todo degrada con elegancia (la narrativa cae a
+plantilla y el chat avisa que no está configurado). Para activarlo, pon la clave
+como variable de entorno en Cloud Run:
+
+```bash
+gcloud run services update momento-api --region us-central1 \
+  --update-env-vars GEMINI_API_KEY=TU_CLAVE_DE_GEMINI
+# opcional: --update-env-vars GEMINI_MODEL=gemini-2.5-flash
+```
+
+La clave se consigue en Google AI Studio (aistudio.google.com/app/apikey). Vive
+**solo en el backend**; el frontend nunca la ve. Verifica:
+
+```bash
+curl "$SERVICE_URL/copiloto/estado"   # {"disponible": true, "modelo": "gemini-2.5-flash"}
+```
+
+---
+
 ## 2. Frontend en Vercel
 
 Archivo ya incluido: `frontend/vercel.json` (solo el fallback SPA para React

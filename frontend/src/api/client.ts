@@ -46,3 +46,23 @@ export async function cargarExcel(file: File): Promise<ResultadoCarga> {
   }
   return res.json() as Promise<ResultadoCarga>;
 }
+
+// --- Copiloto de IA (Gemini) ---
+
+export const getCopilotoEstado = () =>
+  get<{ disponible: boolean; modelo: string }>("/copiloto/estado");
+
+export const getNarrativaIA = (subjectId: string) =>
+  get<{ texto: string; origen: string }>(`/subjects/${subjectId}/narrativa-ia`);
+
+export const getResumenLote = () => get<{ resumen: string }>("/copiloto/resumen");
+
+export async function preguntarCopiloto(subjectId: string, pregunta: string): Promise<string> {
+  const res = await fetch(`${BASE}/copiloto/explicar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject_id: subjectId, pregunta }),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return (await res.json()).respuesta as string;
+}

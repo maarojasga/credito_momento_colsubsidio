@@ -4,10 +4,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AppBar from "../components/AppBar";
+import Copiloto from "../components/Copiloto";
 import ManifestDownload from "../components/ManifestDownload";
 import SenalesTop from "../components/SenalesTop";
 import VentanaChart from "../components/VentanaChart";
-import { getManifest, getOferta } from "../api/client";
+import { getManifest, getNarrativaIA, getOferta } from "../api/client";
 import type { Manifiesto, Oferta } from "../types";
 import { fmtMoney, labelSenal } from "../utils";
 
@@ -15,12 +16,14 @@ export default function AfiliadoView() {
   const { subjectId } = useParams<{ subjectId: string }>();
   const [oferta, setOferta] = useState<Oferta | null>(null);
   const [manifiesto, setManifiesto] = useState<Manifiesto | null>(null);
+  const [narrativa, setNarrativa] = useState<{ texto: string; origen: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!subjectId) return;
     getOferta(subjectId).then(setOferta).catch((e) => setError(String(e)));
     getManifest(subjectId).then(setManifiesto).catch(() => {});
+    getNarrativaIA(subjectId).then(setNarrativa).catch(() => {});
   }, [subjectId]);
 
   if (error) return <Marco><div className="aviso">No se encontró la oferta ({error}).</div></Marco>;
@@ -39,10 +42,10 @@ export default function AfiliadoView() {
           <div className="cuerpo">
             <div className="monto">{fmtMoney(oferta.monto)}</div>
             <div className="plazo">a {oferta.plazo_meses} meses</div>
-            <div className="razon">{oferta.razon_texto}</div>
+            <div className="razon">{narrativa?.texto ?? oferta.razon_texto}</div>
             <div style={{ marginTop: 14, fontSize: 12, color: "var(--grafito-60)" }}>
-              Se enviará por <b>{oferta.canal}</b> a las <b>{oferta.hora_envio}</b> ·
-              narrativa validada ({oferta.narrativa_origen})
+              Se enviará por <b>{oferta.canal}</b> a las <b>{oferta.hora_envio}</b> ·{" "}
+              {narrativa?.origen === "gemini" ? "✨ narrativa con IA (validada)" : "narrativa validada"}
             </div>
           </div>
         </div>
@@ -62,6 +65,8 @@ export default function AfiliadoView() {
             </p>
             <SenalesTop senales={oferta.top_senales} />
           </div>
+
+          <Copiloto subjectId={oferta.subject_id} />
 
           {manifiesto && (
             <div className="card">
