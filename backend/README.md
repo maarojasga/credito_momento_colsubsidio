@@ -84,10 +84,36 @@ Todo en `timing/params.py` es la verdad de campo: la matriz de transición de
 estados, las tasas Poisson por servicio, la estacionalidad y los coeficientes
 del hazard. Cambiar un número ahí cambia el mundo, no el modelo.
 
+## Cargar afiliados desde Excel (datos reales)
+
+Para correr con afiliados reales en vez de los datos de demo, usa un Excel. La
+plantilla `afiliados.xlsx` se genera con:
+
+```bash
+PYTHONPATH=src python scripts/crear_plantilla_excel.py
+```
+
+Columnas: `documento, nombre, correo, categoria, sexo, edad, ingreso_mensual,
+antiguedad_empleo_meses, contrato_indefinido, estrato, localidad, num_hijos`.
+Reemplaza las filas de ejemplo con tus afiliados y cárgalos:
+
+```bash
+PYTHONPATH=src python scripts/cargar_excel.py afiliados.xlsx \
+    --db data/synthetic/momento.duckdb --as-of 2026-07-01
+```
+
+Esto **reemplaza los datos demo** y corre el pipeline completo. Notas:
+
+- **Privacidad**: solo se guarda `subject_id` = hash del documento; nombre,
+  correo y documento nunca se almacenan.
+- El Excel aporta los afiliados; el **historial de eventos se simula** para
+  ilustrar el timing (en un piloto sin buró ese historial aún no existe). El
+  hazard se entrena sobre una población de referencia.
+
 ## Pipeline completo (precálculo de ofertas)
 
-Una vez sembrados los datos, el pipeline corre los cuatro motores y precalcula
-las ofertas + manifiestos. En vivo solo correría el envío del mensaje.
+Una vez cargados los datos (sintéticos o del Excel), el pipeline corre los cuatro
+motores y precalcula las ofertas + manifiestos. En vivo solo correría el envío.
 
 ```bash
 PYTHONPATH=src python scripts/build_ofertas.py \

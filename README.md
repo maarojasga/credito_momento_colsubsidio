@@ -51,12 +51,21 @@ RUES, microdato IEFIC y el envío en vivo por WhatsApp (plantilla a aprobación 
 ## Arrancar
 
 ```bash
-# Backend — datos + pipeline + API
 cd backend && pip install -e .
-PYTHONPATH=src python scripts/seed_synthetic.py     # datos sintéticos en DuckDB
+
+# Opción A — afiliados reales desde Excel (recomendado)
+PYTHONPATH=src python scripts/crear_plantilla_excel.py   # genera afiliados.xlsx
+PYTHONPATH=src python scripts/cargar_excel.py afiliados.xlsx  # carga + pipeline
+
+# Opción B — población sintética grande (para demo del modelo de timing)
+PYTHONPATH=src python scripts/seed_synthetic.py     # 2.000 sujetos en DuckDB
 PYTHONPATH=src python scripts/build_ofertas.py      # precálculo de ofertas
+
 PYTHONPATH=src uvicorn momento.api:app --reload     # API en :8000
 
 # Frontend (en otra terminal)
 cd frontend && npm install && npm run dev           # UI en :5173 (proxy a :8000)
 ```
+
+> Los datos que sirve la API salen de `backend/afiliados.xlsx`. Para desplegar
+> con otros afiliados, edita ese Excel y redespliega (ver `docs/despliegue.md`).

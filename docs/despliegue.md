@@ -111,9 +111,9 @@ curl https://momento-api-XXXXXXXX-uc.a.run.app/stats
 ```
 
 **Notas**
-- El build corre `seed_synthetic.py` + `build_ofertas.py`, así que la imagen ya
-  trae las 1.908 ofertas y sus manifiestos. Para regenerar con otros datos, vuelve
-  a desplegar (o parametriza el `--n`/`--seed`/`--as-of` en el Dockerfile).
+- El build corre `cargar_excel.py afiliados.xlsx`, así que la imagen trae las
+  ofertas de los afiliados del Excel (`backend/afiliados.xlsx`). Para actualizar
+  los afiliados: edita ese Excel, commitea y vuelve a desplegar (ver más abajo).
 - La API abre DuckDB en **read_only**; el filesystem de solo lectura de Cloud Run
   no es problema.
 - CORS ya está abierto (`allow_origins=["*"]`), así que el frontend en Vercel
@@ -152,6 +152,25 @@ abierto, el navegador llama directo a Cloud Run.
 cd frontend
 npx vercel --prod --build-env VITE_API_URL=https://momento-api-XXXX-uc.a.run.app
 ```
+
+---
+
+## 2.5. Actualizar los afiliados (Excel)
+
+Los datos que sirve la API salen de `backend/afiliados.xlsx` (se hornean en el
+build). Para cambiar los afiliados:
+
+```bash
+# edita backend/afiliados.xlsx con tus filas (mismos encabezados)
+git add backend/afiliados.xlsx && git commit -m "actualiza afiliados" && git push
+
+# redesplega el backend (reconstruye la imagen con el nuevo Excel)
+cd backend
+gcloud run deploy momento-api --source . --region us-central1 --allow-unauthenticated
+```
+
+El frontend en Vercel no cambia: sigue leyendo la misma API. Solo se guarda el
+hash del documento, nunca el documento, nombre o correo.
 
 ---
 

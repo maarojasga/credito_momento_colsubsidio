@@ -3,7 +3,7 @@
 # hornea la base sintética dentro de la imagen en tiempo de build. El runtime
 # solo sirve la API (lectura), por eso es una imagen mínima.
 
-# ---- Etapa 1: genera la base sintética con el pipeline completo ----
+# ---- Etapa 1: carga los afiliados del Excel y corre el pipeline ----
 FROM python:3.11-slim AS builder
 WORKDIR /app
 ENV PYTHONPATH=/app/src
@@ -11,10 +11,10 @@ COPY requirements-build.txt .
 RUN pip install --no-cache-dir -r requirements-build.txt
 COPY src ./src
 COPY scripts ./scripts
-RUN python scripts/seed_synthetic.py --n 2000 --seed 42 \
-        --out data/synthetic/momento.duckdb \
- && python scripts/build_ofertas.py --db data/synthetic/momento.duckdb \
-        --as-of 2026-07-01
+COPY afiliados.xlsx .
+# Los afiliados vienen del Excel; sus eventos se simulan para el timing.
+RUN python scripts/cargar_excel.py afiliados.xlsx \
+        --db data/synthetic/momento.duckdb --as-of 2026-07-01
 
 # ---- Etapa 2: runtime mínimo (solo la API) ----
 FROM python:3.11-slim

@@ -29,9 +29,24 @@ def cargar_panel(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     ).df()
 
 
+MIN_FILAS_FIT = 5000
+
+
 def ajustar_hazard(con: duckdb.DuckDBPyConnection):
-    """Ajusta el GLM binomial sobre el panel y devuelve el modelo entrenado."""
+    """Ajusta el GLM binomial sobre el panel y devuelve el modelo entrenado.
+
+    Si el panel es pequeño (p.ej. un Excel de pocos afiliados), entrena el
+    modelo sobre una población sintética de referencia con el mismo proceso
+    generador: el timing es un modelo, y un puñado de filas no basta para
+    estimarlo de forma estable. Las ventanas de los afiliados reales igual se
+    calculan con SUS covariables (ver ventana.extraer_ventanas).
+    """
     df = cargar_panel(con)
+    if len(df) < MIN_FILAS_FIT:
+        from momento.timing.sequences import generar_sintetico
+
+        ref = generar_sintetico(n=2000, seed=7)
+        df = pd.DataFrame(ref.person_period)
     modelo = smf.glm(FORMULA, data=df, family=sm.families.Binomial()).fit()
     return modelo
 
