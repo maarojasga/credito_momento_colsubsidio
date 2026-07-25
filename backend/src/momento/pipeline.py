@@ -10,7 +10,7 @@ Todo se precalcula y se guarda; en vivo solo correría el envío del mensaje.
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 
 from momento.delivery.policy import elegir_canal, elegir_hora
 from momento.explain.contributions import build_payload
@@ -102,3 +102,50 @@ def construir_oferta(subject_id: str, features_sub: dict, categoria: str,
         "manifest_hash": manifiesto["manifest_hash"],
     }
     return fila, manifiesto
+
+
+def ejecutar_pipeline(con, as_of: date) -> dict:
+    """Corre todos los motores sobre los datos ya cargados y guarda las ofertas.
+
+    Enriquecimiento -> hazard/ventana -> reglas -> scorecard -> narrativa ->
+    canal -> manifiesto. Reutilizable desde el seed sintético y desde el Excel.
+    """
+    from momento.enrichment.features import cargar_features
+    from momento.enrichment.materialize import run_enrichment
+    from momento.scoring.scorecard import Scorecard
+    from momento.storage import guardar_metrica, guardar_ofertas
+    from momento.timing.hazard import ajustar_hazard, resumen_coeficientes
+    from momento.timing.ventana import _estado_reciente, cobertura_vs_contacto, extraer_ventanas
+
+    observed_at = datetime.combine(as_of, datetime.min.time())
+    n_sig = run_enrichment(con, observed_at)
+    modelo = ajustar_hazard(con)
+    coef = resumen_coeficientes(modelo)
+    ventanas = extraer_ventanas(con, modelo, as_of)
+    curva = cobertura_vs_contacto(con, modelo)
+
+    features = cargar_features(con, observed_at)
+    categorias = {r[0]: r[1] for r in con.execute("SELECT subject_id, categoria FROM subjects").fetchall()}
+    estados = {sid: e for sid, (e, _) in _estado_reciente(con).items()}
+
+    sc = Scorecard()
+    ofertas, manifiestos, no_elegibles = [], [], 0
+    for sid, fsub in features.items():
+        vent = ventanas.get(sid)
+        if vent is None:
+            continue
+        res = construir_oferta(sid, fsub, categorias.get(sid, "A"), vent,
+                               estados.get(sid, "consolidando"), as_of, sc)
+        if res is None:
+            no_elegibles += 1
+            continue
+        fila, man = res
+        ofertas.append(fila)
+        manifiestos.append({"manifest_hash": man["manifest_hash"],
+                            "payload": json.dumps(man, ensure_ascii=False)})
+
+    guardar_ofertas(con, ofertas, manifiestos)
+    guardar_metrica(con, "cobertura_contacto", curva)
+    guardar_metrica(con, "hazard_coeficientes", coef)
+    return {"senales": n_sig, "ofertas": len(ofertas), "no_elegibles": no_elegibles,
+            "cobertura": curva, "n_obs_hazard": coef["n_obs"]}

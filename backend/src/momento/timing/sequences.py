@@ -128,89 +128,97 @@ def _trayectoria_estados(estado0: str, meses: int, rng: np.random.Generator) -> 
     return salida
 
 
+def _eventos_y_periodos(sub: dict, estado0: str, rng: np.random.Generator,
+                        meses: int, fecha_inicio: date) -> tuple[list[dict], list[dict]]:
+    """Genera los eventos de servicio y las filas person-period de UN sujeto."""
+    sid = sub["subject_id"]
+    income_scale = float(np.clip(0.7 + 0.15 * sub["ingreso_smmlv"], 0.7, 2.5))
+    estados = _trayectoria_estados(estado0, meses, rng)
+
+    eventos: list[dict] = []
+    edu_eventos_por_mes: list[int] = []
+    for t in range(meses):
+        mes_cal = (fecha_inicio.month - 1 + t) % 12
+        tasas = P.TASA_BASE[estados[t]]
+        edu_este_mes = 0
+        for j, servicio in enumerate(P.SERVICIOS):
+            rate = tasas[j] * P.ESTACIONALIDAD[servicio][mes_cal] * income_scale
+            cnt = int(rng.poisson(rate))
+            if servicio == "educacion":
+                edu_este_mes = cnt
+            for _ in range(cnt):
+                monto = float(P.MONTO_MEDIO[servicio] * income_scale * rng.lognormal(0, 0.35))
+                dia = int(rng.integers(0, 27))
+                ts = datetime.combine(_add_months(fecha_inicio, t), datetime.min.time()) + timedelta(
+                    days=dia, hours=int(rng.integers(8, 21))
+                )
+                eventos.append({
+                    "subject_id": sid, "servicio": servicio, "categoria_servicio": servicio,
+                    "monto": round(monto, -2), "ts": ts,
+                })
+        edu_eventos_por_mes.append(edu_este_mes)
+
+    # --- Evento de necesidad de crédito desde el hazard conocido --------
+    person_period: list[dict] = []
+    for t in range(meses):
+        edu_3m = sum(edu_eventos_por_mes[max(0, t - 2): t + 1])
+        z = (edu_3m - 1.5) / 1.5  # estandarización de referencia fija
+        mes_cal = (fecha_inicio.month - 1 + t) % 12
+        logit = (
+            P.HAZARD_INTERCEPTO
+            + P.HAZARD_EFECTO_ESTADO[estados[t]]
+            + P.HAZARD_EFECTO_MES[mes_cal]
+            + P.HAZARD_BETA_EDUCACION * z
+        )
+        h = _sigmoid(logit)
+        person_period.append({
+            "subject_id": sid, "producto": "credito", "t_mes": t,
+            "mes_calendario": mes_cal + 1, "estado": estados[t],
+            "edu_eventos_3m": edu_3m, "hazard_real": round(float(h), 5), "evento": 0,
+        })
+        if rng.random() < h:
+            person_period[-1]["evento"] = 1
+            break  # censura por la derecha: no hay más filas tras el evento
+    return eventos, person_period
+
+
+def generar_eventos(subjects: list[dict], seed: int = 42, meses: int = 36,
+                    fecha_inicio: date = date(2023, 7, 1)) -> tuple[list[dict], list[dict]]:
+    """Genera eventos + person_period para una lista de sujetos dada.
+
+    Sirve tanto para los sujetos sintéticos como para los que vienen de un Excel.
+    Cada sujeto debe traer subject_id, ingreso_smmlv, edad y num_hijos. El estado
+    inicial se toma de `_estado_inicial` si viene, o se deriva de edad y hogar.
+    """
+    rng = np.random.default_rng(seed)
+    eventos: list[dict] = []
+    person_period: list[dict] = []
+    for sub in subjects:
+        estado0 = sub.get("_estado_inicial") or _estado_inicial(
+            int(sub.get("edad") or 40), int(sub.get("num_hijos") or 0), rng)
+        e, p = _eventos_y_periodos(sub, estado0, rng, meses, fecha_inicio)
+        eventos.extend(e)
+        person_period.extend(p)
+    return eventos, person_period
+
+
 def generar_sintetico(
     n: int = 2000,
     seed: int = 42,
     meses: int = 36,
     fecha_inicio: date = date(2023, 7, 1),
 ) -> SyntheticDataset:
-    """Genera `n` afiliados con `meses` de eventos y un hazard de crédito conocido.
+    """Muestrea `n` afiliados y genera sus eventos con un hazard conocido.
 
     Determinista dado `seed`. `fecha_inicio` fija la ventana de observación (no
     se usa la fecha de hoy, para reproducibilidad).
     """
     rng = np.random.default_rng(seed)
+    subjects_full = [_muestrear_subject(doc, seed, rng) for doc in range(n)]
+    eventos, person_period = generar_eventos(subjects_full, seed, meses, fecha_inicio)
+
     ds = SyntheticDataset()
-
-    for doc in range(n):
-        s = _muestrear_subject(doc, seed, rng)
-        sid = s["subject_id"]
-        estados = _trayectoria_estados(s.pop("_estado_inicial"), meses, rng)
-        income_scale = float(np.clip(0.7 + 0.15 * s["ingreso_smmlv"], 0.7, 2.5))
-
-        ds.subjects.append(s)
-
-        edu_eventos_por_mes: list[int] = []
-        for t in range(meses):
-            mes_cal = (fecha_inicio.month - 1 + t) % 12
-            estado = estados[t]
-            tasas = P.TASA_BASE[estado]
-            edu_este_mes = 0
-            for j, servicio in enumerate(P.SERVICIOS):
-                rate = tasas[j] * P.ESTACIONALIDAD[servicio][mes_cal] * income_scale
-                cnt = int(rng.poisson(rate))
-                if servicio == "educacion":
-                    edu_este_mes = cnt
-                for _ in range(cnt):
-                    monto = float(P.MONTO_MEDIO[servicio] * income_scale * rng.lognormal(0, 0.35))
-                    dia = int(rng.integers(0, 27))
-                    ts = datetime.combine(_add_months(fecha_inicio, t), datetime.min.time()) + timedelta(
-                        days=dia, hours=int(rng.integers(8, 21))
-                    )
-                    ds.eventos.append(
-                        {
-                            "subject_id": sid,
-                            "servicio": servicio,
-                            "categoria_servicio": servicio,
-                            "monto": round(monto, -2),
-                            "ts": ts,
-                        }
-                    )
-            edu_eventos_por_mes.append(edu_este_mes)
-
-        # --- Evento de necesidad de crédito desde el hazard conocido --------
-        t_evento: int | None = None
-        for t in range(meses):
-            edu_3m = sum(edu_eventos_por_mes[max(0, t - 2) : t + 1])
-            z = (edu_3m - 1.5) / 1.5  # estandarización de referencia fija
-            mes_cal = (fecha_inicio.month - 1 + t) % 12
-            logit = (
-                P.HAZARD_INTERCEPTO
-                + P.HAZARD_EFECTO_ESTADO[estados[t]]
-                + P.HAZARD_EFECTO_MES[mes_cal]
-                + P.HAZARD_BETA_EDUCACION * z
-            )
-            h = _sigmoid(logit)
-
-            # Fila de person-period (formato discreto): en riesgo hasta el evento.
-            ds.person_period.append(
-                {
-                    "subject_id": sid,
-                    "producto": "credito",
-                    "t_mes": t,
-                    "mes_calendario": mes_cal + 1,
-                    "estado": estados[t],
-                    "edu_eventos_3m": edu_3m,
-                    "hazard_real": round(float(h), 5),
-                    "evento": 0,
-                }
-            )
-
-            if rng.random() < h:
-                t_evento = t
-                ds.person_period[-1]["evento"] = 1
-                break  # censura por la derecha: no hay más filas tras el evento
-
-        # marca de censura la deja implícita el último t sin evento=1
-
+    ds.subjects = [{k: v for k, v in s.items() if not k.startswith("_")} for s in subjects_full]
+    ds.eventos = eventos
+    ds.person_period = person_period
     return ds
