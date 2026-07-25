@@ -35,7 +35,8 @@ gcloud run deploy momento-api \
   --source . \
   --region us-central1 \
   --allow-unauthenticated \
-  --memory 512Mi --port 8080
+  --memory 1Gi --port 8080 \
+  --min-instances 1 --max-instances 1
 #   Si pregunta por crear un repo de Artifact Registry, responde "y".
 #   Al terminar imprime la Service URL: https://momento-api-XXXX-uc.a.run.app
 
@@ -111,15 +112,18 @@ curl https://momento-api-XXXXXXXX-uc.a.run.app/stats
 ```
 
 **Notas**
-- El build corre `cargar_excel.py afiliados.xlsx`, así que la imagen trae las
-  ofertas de los afiliados del Excel (`backend/afiliados.xlsx`). Para actualizar
-  los afiliados: edita ese Excel, commitea y vuelve a desplegar (ver más abajo).
-- La API abre DuckDB en **read_only**; el filesystem de solo lectura de Cloud Run
-  no es problema.
+- La imagen **arranca sin datos**: los afiliados se suben manualmente por la UI
+  (botón *Subir Excel* en la vista operador → `POST /cargar-excel`), que corre el
+  pipeline en caliente. Hasta entonces la vista operador muestra el estado vacío.
+- **Persistencia**: la base subida se escribe en `/tmp` de la instancia, que es
+  efímero. Por eso se despliega con `--min-instances 1 --max-instances 1`: una
+  sola instancia que se mantiene viva conserva los datos entre requests. Si
+  Cloud Run recicla la instancia (deploy, mantenimiento), hay que volver a subir
+  el Excel. Para persistencia durable, montar un bucket de Cloud Storage (ver
+  abajo).
+- Memoria **1Gi**: la ingesta corre el modelo (statsmodels/pandas) en caliente.
 - CORS ya está abierto (`allow_origins=["*"]`), así que el frontend en Vercel
   puede llamar a la API directamente con `VITE_API_URL`.
-- Escala a cero: sin tráfico no cobra. El primer request tras inactividad tiene
-  cold start (~1-2 s).
 
 ---
 
@@ -155,22 +159,29 @@ npx vercel --prod --build-env VITE_API_URL=https://momento-api-XXXX-uc.a.run.app
 
 ---
 
-## 2.5. Actualizar los afiliados (Excel)
+## 2.5. Cargar / actualizar los afiliados (subida manual)
 
-Los datos que sirve la API salen de `backend/afiliados.xlsx` (se hornean en el
-build). Para cambiar los afiliados:
+Los afiliados se suben **por la UI**, sin redesplegar:
 
-```bash
-# edita backend/afiliados.xlsx con tus filas (mismos encabezados)
-git add backend/afiliados.xlsx && git commit -m "actualiza afiliados" && git push
+1. Abre la URL de Vercel → vista operador. Al inicio muestra "Aún no hay
+   afiliados cargados".
+2. **Descargar plantilla** para ver el formato (o usa tu propio Excel con los
+   mismos encabezados).
+3. **Subir Excel** → el backend corre el pipeline y en unos segundos aparecen los
+   KPIs, la métrica de pitch y la tabla de ofertas.
 
-# redesplega el backend (reconstruye la imagen con el nuevo Excel)
-cd backend
-gcloud run deploy momento-api --source . --region us-central1 --allow-unauthenticated
-```
+Para volver a cambiar los afiliados, sube otro Excel: reemplaza los datos. Solo
+se guarda el hash del documento; nombre, correo y documento nunca se almacenan.
 
-El frontend en Vercel no cambia: sigue leyendo la misma API. Solo se guarda el
-hash del documento, nunca el documento, nombre o correo.
+> **Nota de durabilidad**: con `--min-instances 1` los datos viven mientras la
+> instancia siga arriba. Para que sobrevivan a un reinicio, monta un bucket:
+> ```bash
+> gcloud run services update momento-api --region us-central1 \
+>   --add-volume name=datos,type=cloud-storage,bucket=TU_BUCKET \
+>   --add-volume-mount volume=datos,mount-path=/data \
+>   --update-env-vars MOMENTO_DB=/data/momento.duckdb
+> ```
+> Así la base subida queda en Cloud Storage y persiste entre instancias.
 
 ---
 

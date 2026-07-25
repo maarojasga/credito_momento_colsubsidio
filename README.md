@@ -67,5 +67,6 @@ PYTHONPATH=src uvicorn momento.api:app --reload     # API en :8000
 cd frontend && npm install && npm run dev           # UI en :5173 (proxy a :8000)
 ```
 
-> Los datos que sirve la API salen de `backend/afiliados.xlsx`. Para desplegar
-> con otros afiliados, edita ese Excel y redespliega (ver `docs/despliegue.md`).
+> En producción la API arranca **sin datos**: los afiliados se suben por la UI
+> (botón *Subir Excel* en la vista operador). `backend/afiliados.xlsx` es la
+> plantilla de ejemplo, descargable desde la misma UI. Ver `docs/despliegue.md`.

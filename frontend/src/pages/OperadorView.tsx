@@ -1,9 +1,10 @@
 // Vista operador (área de riesgo / negocio): KPIs, métrica de pitch y el lote
 // de ofertas con su ventana, canal y señales. Clic en una fila -> vista afiliado.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppBar from "../components/AppBar";
+import CargarExcel from "../components/CargarExcel";
 import CoberturaChart from "../components/CoberturaChart";
 import { getMetrics, getOfertas, getStats } from "../api/client";
 import type { ListaOfertas, Metrics, Stats } from "../types";
@@ -28,16 +29,19 @@ export default function OperadorView() {
   const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refrescar = useCallback(() => {
     getStats().then(setStats).catch((e) => setError(String(e)));
     getMetrics().then(setMetrics).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     getOfertas(PAGE, page * PAGE, producto || undefined)
       .then(setLista)
       .catch((e) => setError(String(e)));
   }, [producto, page]);
+
+  useEffect(() => {
+    refrescar();
+  }, [refrescar]);
+
+  const vacio = stats !== null && stats.total_ofertas === 0;
 
   return (
     <>
@@ -45,48 +49,66 @@ export default function OperadorView() {
       <div className="contenedor">
         {error && (
           <div className="aviso">
-            No se pudo conectar con la API ({error}). Corre <span className="mono">seed_synthetic</span> y{" "}
-            <span className="mono">build_ofertas</span>, luego levanta{" "}
-            <span className="mono">uvicorn momento.api:app</span>.
+            No se pudo conectar con la API ({error}). Verifica que el backend esté arriba.
           </div>
         )}
 
-        {stats && (
-          <div className="grid kpis">
-            <Kpi valor={stats.total_ofertas.toLocaleString("es-CO")} etiqueta="Ofertas generadas" />
-            <Kpi valor={fmtMoney(stats.monto_promedio)} etiqueta="Monto promedio" />
-            <Kpi valor={Object.keys(stats.productos).length.toString()} etiqueta="Productos" />
-            <Kpi valor={Object.keys(stats.canales).length.toString()} etiqueta="Canales" />
+        {vacio && (
+          <div style={{ maxWidth: 640, margin: "48px auto" }}>
+            <div className="card" style={{ textAlign: "center" }}>
+              <h2>Aún no hay afiliados cargados</h2>
+              <p style={{ color: "var(--grafito-60)", margin: "8px 0 20px" }}>
+                Sube tu Excel de afiliados para generar las ofertas. Descarga la plantilla si
+                necesitas el formato de columnas.
+              </p>
+              <CargarExcel onCargado={refrescar} />
+            </div>
           </div>
         )}
 
-        {metrics?.cobertura_contacto && (
-          <div style={{ marginTop: 18 }}>
-            <CoberturaChart curva={metrics.cobertura_contacto} />
-          </div>
+        {stats && !vacio && (
+          <>
+            <div className="grid kpis">
+              <Kpi valor={stats.total_ofertas.toLocaleString("es-CO")} etiqueta="Ofertas generadas" />
+              <Kpi valor={fmtMoney(stats.monto_promedio)} etiqueta="Monto promedio" />
+              <Kpi valor={Object.keys(stats.productos).length.toString()} etiqueta="Productos" />
+              <Kpi valor={Object.keys(stats.canales).length.toString()} etiqueta="Canales" />
+            </div>
+
+            {metrics?.cobertura_contacto && (
+              <div style={{ marginTop: 18 }}>
+                <CoberturaChart curva={metrics.cobertura_contacto} />
+              </div>
+            )}
+
+            <div className="seccion-titulo">
+              <h2>Ofertas del lote</h2>
+              <span className="pista">clic en una fila para ver la experiencia del afiliado</span>
+              <span className="spacer" style={{ flex: 1 }} />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <CargarExcel onCargado={refrescar} compacto />
+            </div>
+
+            <div className="filtros">
+              {PRODUCTOS.map((p) => (
+                <button
+                  key={p.key}
+                  className={`chip ${producto === p.key ? "activo" : ""}`}
+                  onClick={() => {
+                    setProducto(p.key);
+                    setPage(0);
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
-        <div className="seccion-titulo">
-          <h2>Ofertas del lote</h2>
-          <span className="pista">clic en una fila para ver la experiencia del afiliado</span>
-        </div>
-
-        <div className="filtros">
-          {PRODUCTOS.map((p) => (
-            <button
-              key={p.key}
-              className={`chip ${producto === p.key ? "activo" : ""}`}
-              onClick={() => {
-                setProducto(p.key);
-                setPage(0);
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {lista && (
+        {!vacio && lista && (
           <>
             <table className="ofertas">
               <thead>

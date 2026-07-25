@@ -1,20 +1,28 @@
 """API FastAPI de MOMENTO.
 
-Sirve las ofertas y manifiestos precalculados (todo lo pesado corre offline; en
-vivo solo correría el envío). Alimenta la vista operador y la vista afiliado.
+Sirve las ofertas y manifiestos precalculados, y permite **subir un Excel de
+afiliados manualmente** (la imagen arranca sin datos). Todo lo pesado corre en
+la ingesta; en vivo solo correría el envío del mensaje.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import tempfile
+from datetime import date
 from pathlib import Path
 
 import duckdb
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
+# Ruta ESCRIBIBLE de la base (en Cloud Run: /tmp). Local: data/synthetic/.
 DB_PATH = os.environ.get("MOMENTO_DB", "data/synthetic/momento.duckdb")
+# Plantilla de Excel para descargar desde la UI.
+PLANTILLA_PATH = os.environ.get("MOMENTO_PLANTILLA", "afiliados.xlsx")
+AS_OF = date(2026, 7, 1)
 
 app = FastAPI(title="MOMENTO", version="0.1.0")
 app.add_middleware(
@@ -24,11 +32,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_OFERTA_COLS = [
+    "subject_id", "producto", "nombre_producto", "monto", "plazo_meses", "canal",
+    "hora_envio", "puntos_scorecard", "ventana_inicio", "ventana_fin", "hazard_pico",
+    "razon_texto", "narrativa_origen", "top_senales", "manifest_hash",
+]
 
-def _con() -> duckdb.DuckDBPyConnection:
+
+def _open_ro() -> duckdb.DuckDBPyConnection | None:
+    """Conexión de solo lectura, o None si aún no hay base (estado vacío)."""
     if not Path(DB_PATH).exists():
-        raise HTTPException(503, f"No existe la base {DB_PATH}. Corre seed_synthetic y build_ofertas.")
+        return None
     return duckdb.connect(DB_PATH, read_only=True)
+
+
+def _tiene_ofertas(con: duckdb.DuckDBPyConnection) -> bool:
+    try:
+        return con.execute("SELECT count(*) FROM ofertas").fetchone()[0] > 0
+    except duckdb.Error:
+        return False
 
 
 def _oferta_dict(row: tuple, cols: list[str]) -> dict:
@@ -40,22 +62,18 @@ def _oferta_dict(row: tuple, cols: list[str]) -> dict:
     return d
 
 
-_OFERTA_COLS = [
-    "subject_id", "producto", "nombre_producto", "monto", "plazo_meses", "canal",
-    "hora_envio", "puntos_scorecard", "ventana_inicio", "ventana_fin", "hazard_pico",
-    "razon_texto", "narrativa_origen", "top_senales", "manifest_hash",
-]
-
-
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "db": DB_PATH, "existe": Path(DB_PATH).exists()}
+    return {"status": "ok", "db": DB_PATH, "con_datos": Path(DB_PATH).exists()}
 
 
 @app.get("/stats")
 def stats() -> dict:
-    """Métricas agregadas para el encabezado de la vista operador."""
-    con = _con()
+    con = _open_ro()
+    if con is None or not _tiene_ofertas(con):
+        if con:
+            con.close()
+        return {"total_ofertas": 0, "productos": {}, "canales": {}, "monto_promedio": 0}
     try:
         total = con.execute("SELECT count(*) FROM ofertas").fetchone()[0]
         productos = dict(con.execute(
@@ -68,10 +86,27 @@ def stats() -> dict:
         con.close()
 
 
+@app.get("/metrics")
+def metrics() -> dict:
+    con = _open_ro()
+    if con is None:
+        return {}
+    try:
+        rows = con.execute("SELECT clave, valor FROM metricas").fetchall()
+        return {clave: json.loads(valor) for clave, valor in rows}
+    except duckdb.Error:
+        return {}
+    finally:
+        con.close()
+
+
 @app.get("/ofertas")
 def listar_ofertas(limit: int = 50, offset: int = 0, producto: str | None = None) -> dict:
-    """Lista paginada de ofertas para la tabla del operador."""
-    con = _con()
+    con = _open_ro()
+    if con is None or not _tiene_ofertas(con):
+        if con:
+            con.close()
+        return {"total": 0, "items": []}
     try:
         where = "WHERE producto = ?" if producto else ""
         params = [producto] if producto else []
@@ -86,20 +121,11 @@ def listar_ofertas(limit: int = 50, offset: int = 0, producto: str | None = None
         con.close()
 
 
-@app.get("/metrics")
-def metrics() -> dict:
-    """Métricas del modelo: cobertura vs contacto (§4.5) y coeficientes de hazard."""
-    con = _con()
-    try:
-        rows = con.execute("SELECT clave, valor FROM metricas").fetchall()
-        return {clave: json.loads(valor) for clave, valor in rows}
-    finally:
-        con.close()
-
-
 @app.get("/subjects/{subject_id}/oferta")
 def get_oferta(subject_id: str) -> dict:
-    con = _con()
+    con = _open_ro()
+    if con is None:
+        raise HTTPException(404, "Aún no hay datos cargados")
     try:
         row = con.execute(
             f"SELECT {', '.join(_OFERTA_COLS)} FROM ofertas WHERE subject_id = ?",
@@ -114,8 +140,9 @@ def get_oferta(subject_id: str) -> dict:
 
 @app.get("/subjects/{subject_id}/manifest")
 def get_manifest(subject_id: str) -> dict:
-    """Manifiesto de trazabilidad descargable desde la UI."""
-    con = _con()
+    con = _open_ro()
+    if con is None:
+        raise HTTPException(404, "Aún no hay datos cargados")
     try:
         h = con.execute("SELECT manifest_hash FROM ofertas WHERE subject_id = ?",
                         [subject_id]).fetchone()
@@ -126,3 +153,40 @@ def get_manifest(subject_id: str) -> dict:
         return json.loads(payload[0])
     finally:
         con.close()
+
+
+@app.get("/plantilla")
+def descargar_plantilla() -> FileResponse:
+    """Descarga la plantilla de Excel con los encabezados y ejemplos."""
+    if not Path(PLANTILLA_PATH).exists():
+        raise HTTPException(404, "Plantilla no disponible")
+    return FileResponse(PLANTILLA_PATH, filename="afiliados_plantilla.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.post("/cargar-excel")
+async def cargar_excel(file: UploadFile = File(...)) -> dict:
+    """Sube un Excel de afiliados, corre el pipeline y reemplaza los datos.
+
+    Escribe a una base temporal y la mueve atómicamente sobre la activa, para no
+    interrumpir las lecturas en curso.
+    """
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm")):
+        raise HTTPException(400, "Sube un archivo .xlsx")
+
+    from momento.ingest import ingestar_excel
+
+    tmp_xlsx = Path(tempfile.gettempdir()) / "afiliados_upload.xlsx"
+    tmp_xlsx.write_bytes(await file.read())
+
+    building = DB_PATH + ".building"
+    try:
+        r = ingestar_excel(str(tmp_xlsx), building, AS_OF)
+    except Exception as e:  # noqa: BLE001 — reportar al usuario
+        Path(building).unlink(missing_ok=True)
+        raise HTTPException(400, f"No se pudo procesar el Excel: {e}")
+
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    os.replace(building, DB_PATH)
+    return {"ok": True, "afiliados": r["afiliados"], "ofertas": r["ofertas"],
+            "no_elegibles": r["no_elegibles"]}
