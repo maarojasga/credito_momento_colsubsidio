@@ -1,4 +1,5 @@
-// Copiloto de IA: preguntas del operador ancladas al manifiesto de la oferta.
+// Copiloto de IA como botón flotante: preguntas del operador ancladas al
+// manifiesto de trazabilidad de la oferta (no inventa datos).
 
 import { useState } from "react";
 import { preguntarCopiloto } from "../api/client";
@@ -10,6 +11,7 @@ const SUGERENCIAS = [
 ];
 
 export default function Copiloto({ subjectId }: { subjectId: string }) {
+  const [open, setOpen] = useState(false);
   const [pregunta, setPregunta] = useState("");
   const [respuesta, setRespuesta] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -28,43 +30,53 @@ export default function Copiloto({ subjectId }: { subjectId: string }) {
   }
 
   return (
-    <div className="card">
-      <h3>🤖 Copiloto · pregúntale a la decisión</h3>
-      <p style={{ fontSize: 13, color: "var(--grafito-60)", margin: "4px 0 12px" }}>
-        Responde solo con el manifiesto de trazabilidad: no inventa datos.
-      </p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-        {SUGERENCIAS.map((s) => (
-          <button key={s} className="chip" onClick={() => { setPregunta(s); preguntar(s); }}>
-            {s}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          value={pregunta}
-          onChange={(e) => setPregunta(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && preguntar(pregunta)}
-          placeholder="Escribe tu pregunta…"
-          style={{
-            flex: 1, padding: "9px 12px", borderRadius: 9,
-            border: "1px solid var(--gris-linea)", fontSize: 14,
-          }}
-        />
-        <button className="btn primario" disabled={cargando} onClick={() => preguntar(pregunta)}>
-          {cargando ? "…" : "Preguntar"}
-        </button>
-      </div>
-      {respuesta && (
-        <div
-          style={{
-            marginTop: 14, background: "var(--gris-bg)", borderRadius: 9,
-            padding: "12px 14px", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap",
-          }}
-        >
-          {respuesta}
+    <div className="copiloto-fab">
+      {open && (
+        <div className="copiloto-panel" role="dialog" aria-label="Copiloto de IA">
+          <div className="copiloto-head">
+            <div>
+              <div className="copiloto-titulo">🤖 Copiloto</div>
+              <div className="copiloto-sub">Responde solo con el manifiesto: no inventa datos.</div>
+            </div>
+            <button className="copiloto-cerrar" onClick={() => setOpen(false)} aria-label="Cerrar">
+              ✕
+            </button>
+          </div>
+
+          <div className="copiloto-chips">
+            {SUGERENCIAS.map((s) => (
+              <button key={s} className="chip" onClick={() => { setPregunta(s); preguntar(s); }}>
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {respuesta && (
+            <div className="copiloto-respuesta">{respuesta}</div>
+          )}
+          {cargando && <div className="copiloto-respuesta">Consultando…</div>}
+
+          <div className="copiloto-input">
+            <input
+              value={pregunta}
+              onChange={(e) => setPregunta(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && preguntar(pregunta)}
+              placeholder="Escribe tu pregunta…"
+            />
+            <button className="btn primario" disabled={cargando} onClick={() => preguntar(pregunta)}>
+              {cargando ? "…" : "Enviar"}
+            </button>
+          </div>
         </div>
       )}
+
+      <button
+        className="copiloto-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={open ? "Cerrar copiloto" : "Abrir copiloto"}
+      >
+        {open ? "✕" : "🤖"}
+      </button>
     </div>
   );
 }

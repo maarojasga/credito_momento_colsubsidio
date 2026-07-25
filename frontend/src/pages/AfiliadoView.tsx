@@ -66,8 +66,6 @@ export default function AfiliadoView() {
             <SenalesTop senales={oferta.top_senales} />
           </div>
 
-          <Copiloto subjectId={oferta.subject_id} />
-
           {manifiesto && (
             <div className="card">
               <h3>Trazabilidad</h3>
@@ -98,6 +96,7 @@ export default function AfiliadoView() {
           )}
         </div>
       </div>
+      <Copiloto subjectId={oferta.subject_id} />
     </Marco>
   );
 }
