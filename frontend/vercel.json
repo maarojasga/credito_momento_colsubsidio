@@ -1,15 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    {
-      "comment": "Reemplaza la URL por la de tu servicio de Cloud Run (gcloud run deploy la imprime).",
-      "source": "/api/:path*",
-      "destination": "https://momento-api-XXXXXXXX-uc.a.run.app/:path*"
-    },
-    {
-      "comment": "Fallback SPA: cualquier ruta de React Router sirve index.html.",
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -51,9 +51,12 @@ curl "$SERVICE_URL/stats"
 
 ```bash
 cd ../frontend
-sed -i "s#https://momento-api-XXXXXXXX-uc.a.run.app#$SERVICE_URL#" vercel.json
-npx vercel --prod --token TU_TOKEN_VERCEL --yes
+npx vercel --prod --token TU_TOKEN_VERCEL --yes \
+  --build-env VITE_API_URL=$SERVICE_URL
 ```
+
+El frontend llama directo a la API con esa URL (CORS ya está abierto). El
+`vercel.json` solo trae el fallback SPA para React Router.
 
 **Opción B — todo en GCP con Firebase Hosting** (sin salir de Google):
 
@@ -67,8 +70,7 @@ npx firebase-tools init hosting   # public: dist · SPA: sí · no sobreescribir
 npx firebase-tools deploy --only hosting
 ```
 
-Con Firebase el navegador va directo a Cloud Run (usa CORS, ya habilitado); con
-Vercel queda en el mismo origen vía el proxy de `vercel.json`.
+En ambos casos el navegador va directo a Cloud Run usando CORS (ya habilitado).
 
 ---
 
@@ -114,8 +116,8 @@ curl https://momento-api-XXXXXXXX-uc.a.run.app/stats
   a desplegar (o parametriza el `--n`/`--seed`/`--as-of` en el Dockerfile).
 - La API abre DuckDB en **read_only**; el filesystem de solo lectura de Cloud Run
   no es problema.
-- CORS ya está abierto (`allow_origins=["*"]`), pero con el proxy de Vercel (paso 2)
-  el frontend queda en el mismo origen y ni siquiera se usa CORS.
+- CORS ya está abierto (`allow_origins=["*"]`), así que el frontend en Vercel
+  puede llamar a la API directamente con `VITE_API_URL`.
 - Escala a cero: sin tráfico no cobra. El primer request tras inactividad tiene
   cold start (~1-2 s).
 
@@ -123,42 +125,33 @@ curl https://momento-api-XXXXXXXX-uc.a.run.app/stats
 
 ## 2. Frontend en Vercel
 
-Archivo ya incluido: `frontend/vercel.json` (proxy `/api` → Cloud Run + fallback SPA).
+Archivo ya incluido: `frontend/vercel.json` (solo el fallback SPA para React
+Router). El frontend apunta a la API con la variable `VITE_API_URL`; el cliente
+la toma automáticamente (`src/api/client.ts`) y, como el CORS del backend está
+abierto, el navegador llama directo a Cloud Run.
 
-### Paso previo: pon tu URL de Cloud Run
+### Panel web (UI)
 
-Edita `frontend/vercel.json` y reemplaza el placeholder por la URL real:
+1. **vercel.com → Add New → Project → Import** el repo `maarojasga/credito_momento_colsubsidio`.
+2. **Root Directory:** `frontend` (clic en *Edit*; el proyecto no está en la raíz).
+3. Framework: *Vite* (autodetectado). Build `npm run build`, Output `dist`.
+4. **Environment Variables** → agrega `VITE_API_URL` = la URL de Cloud Run
+   (`echo $SERVICE_URL`).
+5. **Deploy.**
 
-```json
-{ "source": "/api/:path*", "destination": "https://momento-api-XXXXXXXX-uc.a.run.app/:path*" }
-```
+> El código vive en la rama `claude/folder-structure-front-back-vv7d6w` (aún no
+> hay `main` con contenido). Si el deploy sale vacío, en **Settings → Git →
+> Production Branch** pon esa rama y vuelve a desplegar; o mergea la rama a `main`.
+>
+> Las variables `VITE_` se inyectan en el **build**: si cambias `VITE_API_URL`,
+> haz *Redeploy*.
 
-Así el cliente (que llama a `/api/...`) llega a la API sin CORS y en el mismo origen.
-
-### Desplegar (opción CLI)
+### CLI (opción)
 
 ```bash
 cd frontend
-npm i -g vercel
-vercel --prod
+npx vercel --prod --build-env VITE_API_URL=https://momento-api-XXXX-uc.a.run.app
 ```
-
-Cuando pregunte, define **Root Directory = `frontend`** (o córrelo desde esa carpeta).
-Vercel detecta Vite: build `npm run build`, salida `dist`.
-
-### Desplegar (opción panel web)
-
-1. Importa el repo en vercel.com.
-2. **Root Directory:** `frontend`.
-3. Framework: Vite (autodetectado). Build `npm run build`, Output `dist`.
-4. Deploy.
-
-### Alternativa sin editar vercel.json (variable de entorno)
-
-Si prefieres no usar el proxy, borra el primer rewrite y define en Vercel la
-variable `VITE_API_URL` con la URL de Cloud Run. El cliente la toma
-automáticamente (`src/api/client.ts`). En ese caso el navegador va directo a
-Cloud Run y usa CORS (ya está abierto).
 
 ---
 
@@ -169,8 +162,8 @@ Cloud Run y usa CORS (ya está abierto).
 3. "Descargar manifiesto" → baja el JSON de trazabilidad.
 
 Si la tabla sale vacía y aparece el aviso amarillo, el frontend no está llegando
-a la API: revisa la URL en `vercel.json` (o `VITE_API_URL`) y que `/api/health`
-responda desde el dominio de Vercel.
+a la API: revisa `VITE_API_URL` en Vercel (Settings → Environment Variables),
+haz *Redeploy*, y confirma que `TU_URL/health` responde.
 
 ---
 
