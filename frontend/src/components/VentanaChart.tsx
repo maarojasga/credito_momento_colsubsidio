@@ -30,14 +30,18 @@ export default function VentanaChart({
         {meses.map((m, i) => (
           <div key={i} className={`mes ${m.pico ? "pico" : m.dentro ? "dentro" : ""}`}>
             <div className="bloque" />
-            {m.label}
+            <span className="etq">{m.label}</span>
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 13, color: "var(--grafito-60)" }}>
-        Ventana óptima de contacto: <b style={{ color: "var(--azul-oscuro)" }}>
+      <div className="leyenda">
+        <span><i style={{ background: "var(--amarillo)" }} />Ventana</span>
+        <span><i style={{ background: "var(--azul)" }} />Mes pico</span>
+        <span><i style={{ background: "#f1f2f4" }} />Fuera de ventana</span>
+        <span className="spacer" style={{ flex: 1 }} />
+        <span style={{ color: "var(--azul)", textTransform: "none" }}>
           {fmtMes(inicio)} – {fmtMes(fin)}
-        </b>
+        </span>
       </div>
     </div>
   );

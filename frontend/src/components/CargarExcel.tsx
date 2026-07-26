@@ -29,7 +29,7 @@ export default function CargarExcel({
   }
 
   return (
-    <div className={`card ${compacto ? "" : "card-carga"}`}>
+    <div className={compacto ? "" : "card"}>
       {!compacto && <h3>Cargar afiliados</h3>}
       {!compacto && (
         <p style={{ fontSize: 13, color: "var(--grafito-60)", margin: "6px 0 14px" }}>
@@ -50,14 +50,14 @@ export default function CargarExcel({
       />
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button
-          className="btn primario"
+          className="btn"
           disabled={estado === "cargando"}
           onClick={() => input.current?.click()}
         >
-          {estado === "cargando" ? "Procesando…" : "⬆ Subir Excel"}
+          {estado === "cargando" ? "Procesando…" : "Subir Excel de afiliados"}
         </button>
         <a className="btn amarillo" href={plantillaUrl()} download>
-          ⬇ Descargar plantilla
+          Descargar plantilla
         </a>
       </div>
       {mensaje && (
