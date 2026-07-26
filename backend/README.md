@@ -159,6 +159,23 @@ PYTHONPATH=src MOMENTO_DB=data/synthetic/momento.duckdb \
 | `GET /subjects/{id}/narrativa-ia` | narrativa de la oferta con Gemini (validada) |
 | `POST /copiloto/explicar` | responde preguntas ancladas al manifiesto |
 | `GET /copiloto/resumen` | resumen ejecutivo del lote con IA |
+| `GET /lab/estado` | scorecard en producción (experto o aprendido) |
+| `POST /lab/entrenar` | entrena el retador (histórico sintético o Excel propio) |
+| `POST /lab/promover` | promueve el retador a producción |
+| `POST /lab/revertir` | vuelve al scorecard experto |
+
+### Laboratorio de Crédito (`lab/`)
+
+Convierte la tabla de puntos **experta** (a mano) en una **aprendida** con
+metodología estándar de scoring: `woe.py` calcula Weight-of-Evidence e
+Information Value por bin (mismos cortes que el campeón), `train.py` ajusta una
+regresión logística (`statsmodels`) y la escala a puntos (PDO), `metrics.py` mide
+AUC/Gini/KS, y `service.py` evalúa **campeón vs retador** fuera de muestra más una
+auditoría de **equidad por género**. `store.py` promueve el retador: el pipeline
+lee `Scorecard.en_produccion()` y pasa a usar los pesos aprendidos. Sin
+dependencias nuevas (usa `statsmodels`/`numpy` ya presentes). Para entrenar con
+datos reales, sube un Excel con las columnas de señales + una columna de
+desenlace binario (`resultado`/`pago`/`tomo_credito`).
 
 ### Copiloto de IA (Gemini 2.5 Flash)
 

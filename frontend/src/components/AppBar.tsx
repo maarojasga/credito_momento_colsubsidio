@@ -18,6 +18,9 @@ export default function AppBar() {
         <Link to="/operador" className={enOperador ? "activo" : ""}>
           Operador
         </Link>
+        <Link to="/laboratorio" className={pathname.startsWith("/laboratorio") ? "activo" : ""}>
+          Laboratorio
+        </Link>
       </nav>
     </header>
   );

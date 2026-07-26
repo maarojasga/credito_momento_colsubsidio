@@ -44,6 +44,10 @@ afiliados; ver `docs/especificacion.md` §4.1):
 - ✅ Copiloto de IA (Gemini 2.5 Flash): narrativa al afiliado, chat de
   explicabilidad sobre el manifiesto y resumen ejecutivo del lote — grounded y
   con validador anti-alucinación
+- ✅ Laboratorio de Crédito: aprende los pesos del scorecard con WoE +
+  Information Value + regresión logística, compara campeón (experto) vs retador
+  (aprendido) con AUC/Gini/KS, audita equidad por género y promueve el modelo a
+  producción — todo auditable, sin caja negra
 
 Métrica de pitch obtenida: **contactando el 20% capturamos el 75%** de las
 necesidades reales de crédito.

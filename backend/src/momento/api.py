@@ -156,6 +156,57 @@ def get_manifest(subject_id: str) -> dict:
         con.close()
 
 
+# --- Laboratorio de Crédito ---------------------------------------------------
+
+class PromoverModelo(BaseModel):
+    challenger_id: str
+
+
+@app.get("/lab/estado")
+def lab_estado() -> dict:
+    from momento.lab import store
+    return store.estado()
+
+
+@app.post("/lab/entrenar")
+async def lab_entrenar(file: UploadFile | None = File(default=None)) -> dict:
+    """Entrena el retador. Sin archivo usa el histórico sintético etiquetado;
+    con archivo, entrena sobre TU histórico (señales + columna de desenlace)."""
+    from momento.lab.dataset import desde_excel
+    from momento.lab.service import correr_experimento
+
+    df = None
+    if file is not None:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp.write(await file.read())
+            ruta = tmp.name
+        try:
+            df = desde_excel(ruta)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        finally:
+            os.unlink(ruta)
+    try:
+        return correr_experimento(df)
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo entrenar: {e}")
+
+
+@app.post("/lab/promover")
+def lab_promover(body: PromoverModelo) -> dict:
+    from momento.lab import store
+    try:
+        return store.promover(body.challenger_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/lab/revertir")
+def lab_revertir() -> dict:
+    from momento.lab import store
+    return store.revertir()
+
+
 # --- Copiloto de IA (Gemini) --------------------------------------------------
 
 class PreguntaCopiloto(BaseModel):
