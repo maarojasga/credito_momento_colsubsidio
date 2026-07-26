@@ -47,6 +47,40 @@ export async function cargarExcel(file: File): Promise<ResultadoCarga> {
   return res.json() as Promise<ResultadoCarga>;
 }
 
+// --- Ciclo de vida: campaña -> aceptación -> firma -> extractos ---
+
+export interface Ciclo { estado: string; historial: string[] }
+export interface CampanaEstado {
+  conteo: Record<string, number>;
+  total: number;
+  campana_enviada: boolean;
+}
+
+export const getCampanaEstado = () => get<CampanaEstado>("/campana/estado");
+export const getCiclo = (id: string) => get<Ciclo>(`/subjects/${id}/ciclo`);
+
+const post = async <T>(path: string, body?: unknown): Promise<T> => {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error((d as { detail?: string }).detail ?? `${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+};
+
+export const contratoPdfUrl = (id: string) => `${BASE}/subjects/${id}/contrato.pdf`;
+export const extractoPdfUrl = (id: string) => `${BASE}/subjects/${id}/extracto.pdf`;
+
+export const enviarCampana = () => post<{ enviadas: number; total: number }>("/campana/enviar");
+export const responderOferta = (id: string, accion: "aceptar" | "rechazar") =>
+  post<Ciclo>(`/subjects/${id}/responder`, { accion });
+export const firmarContrato = (id: string) => post<Ciclo>(`/subjects/${id}/firmar`);
+export const reabrirOferta = (id: string) => post<Ciclo>(`/subjects/${id}/reabrir`);
+
 // --- Laboratorio de Crédito ---
 
 export const getLabEstado = () =>

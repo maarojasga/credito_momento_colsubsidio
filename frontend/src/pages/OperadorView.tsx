@@ -7,7 +7,10 @@ import AppBar from "../components/AppBar";
 import CargarExcel from "../components/CargarExcel";
 import CoberturaChart from "../components/CoberturaChart";
 import ResumenIA from "../components/ResumenIA";
-import { getMetrics, getOfertas, getStats } from "../api/client";
+import {
+  enviarCampana, getCampanaEstado, getMetrics, getOfertas, getStats,
+  type CampanaEstado,
+} from "../api/client";
 import type { ListaOfertas, Metrics, Stats } from "../types";
 import { fmtMes, fmtMoney } from "../utils";
 
@@ -35,15 +38,19 @@ export default function OperadorView() {
   const [lista, setLista] = useState<ListaOfertas | null>(null);
   const [producto, setProducto] = useState("");
   const [page, setPage] = useState(0);
+  const [campana, setCampana] = useState<CampanaEstado | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refrescar = useCallback(() => {
     getStats().then(setStats).catch((e) => setError(String(e)));
     getMetrics().then(setMetrics).catch(() => {});
+    getCampanaEstado().then(setCampana).catch(() => {});
     getOfertas(PAGE, page * PAGE, producto || undefined)
       .then(setLista)
       .catch((e) => setError(String(e)));
   }, [producto, page]);
+
+  const lanzarCampana = async () => { await enviarCampana(); refrescar(); };
 
   useEffect(() => { refrescar(); }, [refrescar]);
 
@@ -114,6 +121,37 @@ export default function OperadorView() {
 
             <div style={{ marginTop: 20 }}>
               <ResumenIA />
+            </div>
+
+            {/* Embudo de campaña */}
+            <div className="card" style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <h3 style={{ margin: 0 }}>Campaña a la base de clientes 📨</h3>
+                <span className="pista">propuesta → aceptación → firma → extractos</span>
+                <span className="spacer" style={{ flex: 1 }} />
+                <button className="btn primario" onClick={lanzarCampana}>
+                  {campana?.campana_enviada ? "Reenviar propuesta" : "Enviar propuesta a la base →"}
+                </button>
+              </div>
+              {campana && (
+                <div className="embudo">
+                  {[
+                    ["Propuesta enviada", campana.conteo.propuesta_enviada + campana.conteo.aceptada + campana.conteo.firmada, "var(--azul)"],
+                    ["Aceptada", campana.conteo.aceptada + campana.conteo.firmada, "var(--azul-oscuro)"],
+                    ["Firmada", campana.conteo.firmada, "var(--ok)"],
+                    ["Rechazada", campana.conteo.rechazada, "var(--rojo)"],
+                  ].map(([k, v, c]) => (
+                    <div className="embudo-col" key={k as string}>
+                      <div className="embudo-n" style={{ color: c as string }}>{v as number}</div>
+                      <div className="embudo-k">{k as string}</div>
+                    </div>
+                  ))}
+                  <div className="embudo-col">
+                    <div className="embudo-n" style={{ color: "var(--gris-suave)" }}>{campana.conteo.pendiente}</div>
+                    <div className="embudo-k">Sin enviar</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Lote */}

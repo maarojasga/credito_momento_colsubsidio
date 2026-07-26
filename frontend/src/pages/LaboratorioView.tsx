@@ -3,8 +3,9 @@
 
 import { useEffect, useState } from "react";
 import AppBar from "../components/AppBar";
+import { Link } from "react-router-dom";
 import {
-  entrenarModelo, getLabEstado, promoverModelo, revertirModelo,
+  entrenarModelo, enviarCampana, getLabEstado, promoverModelo, revertirModelo,
   type ExperimentoLab, type MetricaSet,
 } from "../api/client";
 import { labelSenal } from "../utils";
@@ -64,6 +65,10 @@ export default function LaboratorioView() {
     setMsg("Revertido al scorecard experto.");
     refrescar();
   }
+  async function campana() {
+    const r = await enviarCampana();
+    setMsg(`📨 Propuesta enviada a ${r.enviadas} de ${r.total} clientes de la base. Cada uno recibe su oferta y el contrato por su canal.`);
+  }
 
   const buroActivo = !!buroSel || !!buroFile;
 
@@ -102,6 +107,20 @@ export default function LaboratorioView() {
           {estado?.hay_promovido && (
             <button className="btn" onClick={revertir}>Revertir a experto</button>
           )}
+        </div>
+
+        {/* Campaña: enviar a la base de clientes (tras ganar/promover un modelo) */}
+        <div className="card" style={{ marginTop: 14, borderLeft: "4px solid var(--amarillo)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Activar la oferta 📨</h3>
+            <p className="pista" style={{ margin: "4px 0 0" }}>
+              Con el modelo en producción, envía la propuesta y el contrato a toda la base de clientes.
+              Ellos aceptan, firman y reciben sus extractos.
+            </p>
+          </div>
+          <span className="spacer" style={{ flex: 1 }} />
+          <Link to="/operador" className="btn">Ver base de clientes</Link>
+          <button className="btn primario" onClick={campana}>Enviar propuesta a la base →</button>
         </div>
 
         {/* Fuente de buró (opcional) */}
