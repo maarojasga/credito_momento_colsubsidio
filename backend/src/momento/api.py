@@ -33,6 +33,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.on_event("startup")
+def _precargar_lab() -> None:
+    """Importa la pila del laboratorio (statsmodels/scipy) en el arranque, no en
+    la primera petición. Sin esto, el primer 'Entrenar' paga ~15s de imports en
+    frío, que en la nube puede pasar el timeout del proxy y parecer que 'no sirve'."""
+    try:
+        import momento.lab.buro  # noqa: F401
+        import momento.lab.service  # noqa: F401
+    except Exception:  # el arranque no debe fallar por el warmup
+        pass
+
 _OFERTA_COLS = [
     "subject_id", "producto", "nombre_producto", "monto", "plazo_meses", "canal",
     "hora_envio", "puntos_scorecard", "ventana_inicio", "ventana_fin", "hazard_pico",
