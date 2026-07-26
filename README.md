@@ -54,8 +54,11 @@ afiliados; ver `docs/especificacion.md` §4.1):
   es la única opción
 - ✅ Ciclo de vida post-modelo: al promover un modelo se envía la propuesta + el
   contrato a la base de clientes; el afiliado acepta y firma, y quedan disponibles
-  los documentos (contrato de crédito y extractos mensuales, imprimibles a PDF).
-  El operador ve el embudo propuesta → aceptación → firma
+  los documentos. El operador ve el embudo propuesta → aceptación → firma
+- ✅ Documentos en PDF generados en el backend (reportlab): contrato de crédito
+  (con plan de pagos y trazabilidad) y extracto mensual, servidos por URL
+  (`/subjects/{id}/contrato.pdf`, `/extracto.pdf`) — listos para adjuntarse por
+  WhatsApp
 
 Métrica de pitch obtenida: **contactando el 20% capturamos el 75%** de las
 necesidades reales de crédito.

@@ -72,6 +72,9 @@ const post = async <T>(path: string, body?: unknown): Promise<T> => {
   return res.json() as Promise<T>;
 };
 
+export const contratoPdfUrl = (id: string) => `${BASE}/subjects/${id}/contrato.pdf`;
+export const extractoPdfUrl = (id: string) => `${BASE}/subjects/${id}/extracto.pdf`;
+
 export const enviarCampana = () => post<{ enviadas: number; total: number }>("/campana/enviar");
 export const responderOferta = (id: string, accion: "aceptar" | "rechazar") =>
   post<Ciclo>(`/subjects/${id}/responder`, { accion });

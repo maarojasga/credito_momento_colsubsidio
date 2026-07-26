@@ -16,7 +16,7 @@ from pathlib import Path
 import duckdb
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 # Ruta ESCRIBIBLE de la base (en Cloud Run: /tmp). Local: data/synthetic/.
@@ -228,6 +228,46 @@ def ciclo_firmar(subject_id: str) -> dict:
 def ciclo_reabrir(subject_id: str) -> dict:
     from momento import ciclo
     return ciclo.reabrir(subject_id)
+
+
+def _oferta_y_manifiesto(subject_id: str) -> tuple[dict, dict]:
+    con = _open_ro()
+    if con is None:
+        raise HTTPException(404, "Aún no hay datos cargados")
+    try:
+        row = con.execute(
+            "SELECT nombre_producto, monto, plazo_meses, canal, hora_envio, puntos_scorecard, "
+            "top_senales, manifest_hash FROM ofertas WHERE subject_id = ?", [subject_id]).fetchone()
+        if row is None:
+            raise HTTPException(404, "Sujeto sin oferta")
+        payload = con.execute("SELECT payload FROM manifests WHERE manifest_hash = ?", [row[7]]).fetchone()
+    finally:
+        con.close()
+    oferta = {
+        "subject_id": subject_id, "nombre_producto": row[0], "monto": row[1], "plazo_meses": row[2],
+        "canal": row[3], "hora_envio": row[4], "puntos_scorecard": row[5],
+        "top_senales": json.loads(row[6]) if row[6] else [],
+    }
+    manifiesto = json.loads(payload[0]) if payload else {"senales": [], "reglas_evaluadas": []}
+    return oferta, manifiesto
+
+
+@app.get("/subjects/{subject_id}/contrato.pdf")
+def contrato_pdf(subject_id: str) -> Response:
+    from momento import documentos
+    oferta, manifiesto = _oferta_y_manifiesto(subject_id)
+    pdf = documentos.contrato_pdf(oferta, manifiesto)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="contrato_{subject_id}.pdf"'})
+
+
+@app.get("/subjects/{subject_id}/extracto.pdf")
+def extracto_pdf(subject_id: str, pagadas: int = 3) -> Response:
+    from momento import documentos
+    oferta, _ = _oferta_y_manifiesto(subject_id)
+    pdf = documentos.extracto_pdf(oferta, pagadas=pagadas)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="extracto_{subject_id}.pdf"'})
 
 
 # --- Laboratorio de Crédito ---------------------------------------------------

@@ -2,15 +2,15 @@
 // respaldo de la decisión (cuándo, por qué, trazabilidad).
 
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import AppBar from "../components/AppBar";
 import Copiloto from "../components/Copiloto";
 import ManifestDownload from "../components/ManifestDownload";
 import SenalesTop from "../components/SenalesTop";
 import VentanaChart from "../components/VentanaChart";
 import {
-  firmarContrato, getCiclo, getManifest, getNarrativaIA, getOferta,
-  reabrirOferta, responderOferta,
+  contratoPdfUrl, extractoPdfUrl, firmarContrato, getCiclo, getManifest,
+  getNarrativaIA, getOferta, reabrirOferta, responderOferta,
 } from "../api/client";
 import type { Manifiesto, Oferta } from "../types";
 import { fmtMoney, labelSenal } from "../utils";
@@ -165,10 +165,10 @@ function CicloAccion({ estado, subjectId, canal, onResponder, onFirmar, onReabri
       <div className="ciclo-ok">
         <div className="cab"><i />Propuesta aceptada · falta firmar</div>
         <div className="cuerpo">
-          <Link to={`/contrato/${subjectId}`} className="doc-link">
+          <a href={contratoPdfUrl(subjectId)} target="_blank" rel="noopener noreferrer" className="doc-link">
             <span><span className="t">Revisar contrato</span><br /><span className="s">PDF · CONDICIONES Y PLAN DE PAGOS</span></span>
             <span className="ir">ABRIR →</span>
-          </Link>
+          </a>
           <button className="btn primario" onClick={onFirmar}>Firmar contrato</button>
           <span className="ciclo-nota" onClick={onReabrir} style={{ cursor: "pointer" }}>◂ Deshacer respuesta</span>
         </div>
@@ -184,14 +184,14 @@ function CicloAccion({ estado, subjectId, canal, onResponder, onFirmar, onReabri
           <span style={{ fontSize: 13.5, color: "var(--grafito-60)", fontWeight: 500 }}>
             Los documentos quedaron disponibles en el chat de {canal}.
           </span>
-          <Link to={`/contrato/${subjectId}`} className="doc-link">
+          <a href={contratoPdfUrl(subjectId)} target="_blank" rel="noopener noreferrer" className="doc-link">
             <span><span className="t">Contrato de crédito</span><br /><span className="s">PDF · CONDICIONES Y PLAN DE PAGOS</span></span>
             <span className="ir">ABRIR →</span>
-          </Link>
-          <Link to={`/extracto/${subjectId}`} className="doc-link">
+          </a>
+          <a href={extractoPdfUrl(subjectId)} target="_blank" rel="noopener noreferrer" className="doc-link">
             <span><span className="t">Extracto mensual</span><br /><span className="s">PDF · CUOTA, SALDO Y MOVIMIENTOS</span></span>
             <span className="ir">ABRIR →</span>
-          </Link>
+          </a>
         </div>
       </div>
     );
