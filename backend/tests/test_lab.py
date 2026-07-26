@@ -69,3 +69,25 @@ def test_buro_aporta_pero_no_cubre_a_todos(entorno):
 def test_sin_buro_no_incluye_bloque(entorno):
     r = correr_experimento()
     assert r["buro"] == {"activo": False}
+    assert r["integral"] == {"activo": False}
+
+
+def test_proveedores_tienen_cobertura_distinta(entorno):
+    # Cada proveedor tiene su propio perfil: Datacrédito cubre más que Experian.
+    cob = {}
+    for prov in ("datacredito", "transunion", "experian"):
+        cob[prov] = correr_experimento(buro_fuente=prov)["buro"]["cobertura"]
+    assert cob["datacredito"] > cob["experian"]
+
+
+def test_modelo_integral_es_el_techo(entorno):
+    r = correr_experimento(integral=True)
+    g = r["integral"]
+    assert g["activo"]
+    assert g["n_features"] == 15  # 6 internas + 3 señales × 3 proveedores
+    assert len(g["proveedores"]) == 3
+    # El integral (todo) supera al modelo sin buró.
+    assert g["metricas"]["integral"]["auc"] > g["metricas"]["sin_buro"]["auc"]
+    # Con tres burós casi todos quedan cubiertos, pero no el 100%.
+    assert g["cobertura_algun"] > 0.85
+    assert 0 < g["sin_ningun_pct"] < 15

@@ -1,15 +1,15 @@
-"""Buró de crédito como potenciador OPCIONAL (no núcleo).
+"""Buró de crédito: tres proveedores con datos propios + modelo base integral.
 
-El motor funciona sin buró — ese es el diferenciador: llega a quien no tiene
-historial. Este módulo permite, si se quiere, sumar señales de buró y medir
-cuánto aportan, y a cuántos afiliados el buró NO cubre (thin-file / sin historial).
+El scorecard de PRODUCCIÓN es sin buró (el diferenciador: llega a quien no tiene
+historial). Aparte, el laboratorio permite:
+  - conectar un proveedor (Datacrédito / TransUnion / Experian), cada uno con su
+    propio perfil sintético (rango de score, cobertura y fuerza distintos), y medir
+    cuánto aporta ese buró;
+  - construir un MODELO BASE INTEGRAL que considera todo —demografía + señales
+    internas + los tres burós— como techo/referencia de lo que se podría lograr
+    con toda la información disponible.
 
-Dos formas de traerlo:
-  - `conectar` (conector simulado a Datacrédito/TransUnion/Experian): en un demo
-    genera el reporte; en producción se reemplaza por el cliente real del buró.
-  - `desde_excel`: carga un archivo de buró con las columnas de señales.
-
-Señales de buró y sus cortes (bins), en el mismo formato que el scorecard.
+Las señales de buró usan el mismo formato de bins (cortes) que el scorecard.
 """
 
 from __future__ import annotations
@@ -24,11 +24,21 @@ from momento.lab import metrics
 from momento.lab.woe import binizar, matriz_woe, tabla_woe
 from momento.scoring.scorecard import CORTES, ETIQUETAS, FEATURES
 
-BUROS = {"datacredito": "Datacrédito", "transunion": "TransUnion", "experian": "Experian"}
+# Perfil sintético por proveedor: rango real-ish de score, desplazamiento por
+# desenlace (fuerza), ruido y cobertura (qué fracción de la población cubre).
+PROVEEDORES = {
+    "datacredito": {"nombre": "Datacrédito", "rango": (150, 950), "media": 620,
+                    "shift": 48, "ruido": 100, "cobertura": 0.72},
+    "transunion": {"nombre": "TransUnion", "rango": (300, 850), "media": 590,
+                   "shift": 42, "ruido": 108, "cobertura": 0.66},
+    "experian": {"nombre": "Experian", "rango": (300, 850), "media": 585,
+                 "shift": 38, "ruido": 114, "cobertura": 0.60},
+}
+BUROS = {k: v["nombre"] for k, v in PROVEEDORES.items()}
 
-BURO_FEATURES = ["score_buro", "moras_ult_12m", "nivel_endeudamiento"]
+BURO_SIGNALS = ["score_buro", "moras_ult_12m", "nivel_endeudamiento"]
+BURO_FEATURES = BURO_SIGNALS  # nombres base (flujo de un solo proveedor)
 
-# cortes (límite superior exclusivo) y etiquetas por señal de buró.
 BURO_CORTES = {
     "score_buro": [500, 650, 750, None],
     "moras_ult_12m": [1, 2, 4, None],
@@ -39,89 +49,131 @@ BURO_ETIQUETAS = {
     "moras_ult_12m": ["0", "1", "2-3", ">=4"],
     "nivel_endeudamiento": ["<30%", "30-50%", "50-70%", ">=70%"],
 }
-# Cobertura típica: parte de la población no tiene historial en buró (thin-file).
-COBERTURA_DEFECTO = 0.72
 
 
-def simular_buro(df: pd.DataFrame, seed: int = 7, cobertura: float = COBERTURA_DEFECTO) -> pd.DataFrame:
-    """Adjunta señales de buró correlacionadas con el desenlace, con vacíos de cobertura.
-
-    El buró es predictivo (por eso aporta), pero no cubre a todos: quien no tiene
-    historial queda con las señales de buró en faltante.
-    """
+def _senales_proveedor(df: pd.DataFrame, prof: dict, seed: int):
+    """Genera (score, moras, endeudamiento, sin_historial) con el perfil dado."""
     rng = np.random.default_rng(seed)
     n = len(df)
     y = df["resultado"].to_numpy() if "resultado" in df else np.zeros(n)
+    lo, hi = prof["rango"]
 
-    # score correlacionado con el buen desenlace + bastante ruido (predictivo,
-    # no mágico: un buró real discrimina fuerte pero no perfecto).
-    base = 610 + 45 * (y - 0.5) * 2 + rng.normal(0, 105, n)
-    score = np.clip(base, 300, 950).round().astype(float)
+    base = prof["media"] + prof["shift"] * (y - 0.5) * 2 + rng.normal(0, prof["ruido"], n)
+    score = np.clip(base, lo, hi).round().astype(float)
     moras = np.clip(rng.poisson(np.where(y == 1, 0.5, 1.1), n), 0, 12).astype(float)
     endeud = np.clip(rng.beta(2, 5, n) + np.where(y == 1, -0.03, 0.06), 0.02, 0.98).round(3)
+    sin_historial = rng.random(n) >= prof["cobertura"]
+    return score, moras, endeud, sin_historial
 
+
+def simular_buro(df: pd.DataFrame, fuente: str = "datacredito", seed: int = 7) -> pd.DataFrame:
+    """Adjunta las señales del proveedor `fuente` con sus nombres base."""
+    prof = PROVEEDORES.get(fuente, PROVEEDORES["datacredito"])
+    score, moras, endeud, sin = _senales_proveedor(df, prof, seed)
     out = df.copy()
-    out["score_buro"] = score
-    out["moras_ult_12m"] = moras
-    out["nivel_endeudamiento"] = endeud
-
-    # Vacíos de cobertura: sin historial -> señales de buró en NaN.
-    sin_historial = rng.random(n) >= cobertura
-    out.loc[sin_historial, BURO_FEATURES] = np.nan
+    out["score_buro"], out["moras_ult_12m"], out["nivel_endeudamiento"] = score, moras, endeud
+    out.loc[sin, BURO_SIGNALS] = np.nan
     return out
 
 
-def desde_excel(ruta: str | Path, df: pd.DataFrame) -> pd.DataFrame:
-    """Carga señales de buró desde un Excel y las alinea por fila con `df`.
+def simular_integral(df: pd.DataFrame, seed: int = 7) -> pd.DataFrame:
+    """Adjunta las señales de los TRES proveedores con nombres prefijados."""
+    out = df.copy()
+    for i, (prov, prof) in enumerate(PROVEEDORES.items()):
+        score, moras, endeud, sin = _senales_proveedor(df, prof, seed + i * 101)
+        cols = {f"score_buro__{prov}": score, f"moras_ult_12m__{prov}": moras,
+                f"nivel_endeudamiento__{prov}": endeud}
+        for c, v in cols.items():
+            out[c] = v
+        sin_cols = [f"{s}__{prov}" for s in BURO_SIGNALS]
+        out.loc[sin, sin_cols] = np.nan
+    return out
 
-    Espera las columnas de `BURO_FEATURES` (acepta mayúsculas/acentos). Si el
-    conteo de filas no coincide, alinea las que pueda y deja el resto en faltante.
-    """
+
+def features_integrales():
+    """(features, cortes, etiquetas) del modelo integral: internas + los 3 burós."""
+    feats = list(FEATURES)
+    cortes, etq = dict(CORTES), dict(ETIQUETAS)
+    for prov in PROVEEDORES:
+        for sig in BURO_SIGNALS:
+            f = f"{sig}__{prov}"
+            feats.append(f)
+            cortes[f] = BURO_CORTES[sig]
+            etq[f] = BURO_ETIQUETAS[sig]
+    return feats, cortes, etq
+
+
+def desde_excel(ruta: str | Path, df: pd.DataFrame) -> pd.DataFrame:
+    """Carga señales de buró desde un Excel y las alinea por fila con `df`."""
     raw = pd.read_excel(ruta)
     cols = {c.lower().strip(): c for c in raw.columns}
-    faltan = [f for f in BURO_FEATURES if f not in cols]
+    faltan = [f for f in BURO_SIGNALS if f not in cols]
     if faltan:
-        raise ValueError(f"El archivo de buró debe traer: {', '.join(BURO_FEATURES)}.")
+        raise ValueError(f"El archivo de buró debe traer: {', '.join(BURO_SIGNALS)}.")
     out = df.copy()
-    for f in BURO_FEATURES:
+    for f in BURO_SIGNALS:
         serie = pd.to_numeric(raw[cols[f]], errors="coerce").reindex(range(len(df)))
         out[f] = serie.to_numpy()
     return out
 
 
 def evaluar_aporte(train_df: pd.DataFrame, test_df: pd.DataFrame, fuente: str) -> dict:
-    """Compara modelo SIN buró vs CON buró (proba logística), fuera de muestra.
-
-    Devuelve métricas de ambos, el lift del buró, el IV de cada señal de buró y la
-    cobertura real (qué % de la prueba tenía historial).
-    """
+    """Compara modelo SIN buró vs CON buró (un proveedor), fuera de muestra."""
     y_tr = train_df["resultado"].to_numpy()
     y_te = test_df["resultado"].to_numpy()
 
     proba_sin = _proba_logistica(train_df, test_df, FEATURES, CORTES, ETIQUETAS, y_tr)
     m_sin = metrics.resumen(y_te, proba_sin)
 
-    feats_h = FEATURES + BURO_FEATURES
-    cortes_h = {**CORTES, **BURO_CORTES}
-    etq_h = {**ETIQUETAS, **BURO_ETIQUETAS}
-    proba_con = _proba_logistica(train_df, test_df, feats_h, cortes_h, etq_h, y_tr)
+    feats_h = FEATURES + BURO_SIGNALS
+    proba_con = _proba_logistica(train_df, test_df, feats_h,
+                                 {**CORTES, **BURO_CORTES}, {**ETIQUETAS, **BURO_ETIQUETAS}, y_tr)
     m_con = metrics.resumen(y_te, proba_con)
 
-    # IV de las señales de buró (sobre entrenamiento).
-    bins_b = binizar(train_df, BURO_FEATURES, BURO_CORTES, BURO_ETIQUETAS)
-    woe_b = tabla_woe(bins_b, y_tr, BURO_FEATURES, BURO_ETIQUETAS)
-
+    bins_b = binizar(train_df, BURO_SIGNALS, BURO_CORTES, BURO_ETIQUETAS)
+    woe_b = tabla_woe(bins_b, y_tr, BURO_SIGNALS, BURO_ETIQUETAS)
     cobertura = float(test_df["score_buro"].notna().mean())
     return {
         "activo": True,
         "fuente": BUROS.get(fuente, fuente),
         "cobertura": round(cobertura, 3),
         "sin_cobertura_pct": round((1 - cobertura) * 100, 1),
-        "iv": [{"feature": f, "iv": woe_b[f]["iv"]} for f in BURO_FEATURES],
+        "iv": [{"feature": f, "iv": woe_b[f]["iv"]} for f in BURO_SIGNALS],
         "metricas": {
             "sin_buro": m_sin,
             "con_buro": m_con,
             "lift": {k: round(m_con[k] - m_sin[k], 4) for k in m_sin},
+        },
+    }
+
+
+def evaluar_integral(train_df: pd.DataFrame, test_df: pd.DataFrame) -> dict:
+    """Modelo BASE INTEGRAL: demografía + internas + los tres burós, vs sin buró."""
+    y_tr = train_df["resultado"].to_numpy()
+    y_te = test_df["resultado"].to_numpy()
+
+    proba_sin = _proba_logistica(train_df, test_df, FEATURES, CORTES, ETIQUETAS, y_tr)
+    m_sin = metrics.resumen(y_te, proba_sin)
+
+    feats, cortes, etq = features_integrales()
+    proba_full = _proba_logistica(train_df, test_df, feats, cortes, etq, y_tr)
+    m_full = metrics.resumen(y_te, proba_full)
+
+    # Cobertura por proveedor y "al menos uno".
+    por_prov = {PROVEEDORES[p]["nombre"]: round(float(test_df[f"score_buro__{p}"].notna().mean()), 3)
+                for p in PROVEEDORES}
+    algun_col = test_df[[f"score_buro__{p}" for p in PROVEEDORES]].notna().any(axis=1)
+    return {
+        "activo": True,
+        "n_features": len(feats),
+        "proveedores": [PROVEEDORES[p]["nombre"] for p in PROVEEDORES],
+        "cobertura_algun": round(float(algun_col.mean()), 3),
+        "sin_ningun_pct": round(float((~algun_col).mean()) * 100, 1),
+        "cobertura_por_proveedor": por_prov,
+        "metricas": {
+            "sin_buro": m_sin,
+            "integral": m_full,
+            "lift": {k: round(m_full[k] - m_sin[k], 4) for k in m_sin},
         },
     }
 

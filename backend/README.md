@@ -178,11 +178,17 @@ datos reales, sube un Excel con las columnas de señales + una columna de
 desenlace binario (`resultado`/`pago`/`tomo_credito`).
 
 **Buró opcional (`buro.py`).** El scorecard de producción es *sin buró* (el
-diferenciador: llega a quien no tiene historial). Si se quiere, se conecta un
-buró (conector simulado a Datacrédito/TransUnion/Experian) o se cargan sus datos,
-y el laboratorio mide **Sin buró vs. Con buró** (lift de AUC/Gini/KS), el IV de
-las señales de buró y —clave— qué % de afiliados el buró **no cubre**
-(thin-file). No toca la tabla que se promueve: el buró es potenciador, no núcleo.
+diferenciador: llega a quien no tiene historial). Aparte, el laboratorio ofrece:
+
+- **Tres proveedores con datos propios** — Datacrédito, TransUnion y Experian,
+  cada uno con su perfil sintético (rango de score, cobertura y fuerza distintos).
+  Conectar uno mide **Sin buró vs. Con buró** (lift de AUC/Gini/KS), su IV y qué %
+  de afiliados no cubre (thin-file).
+- **Modelo base integral** — `evaluar_integral` entrena el modelo que considera
+  *todo*: demografía + señales internas + los tres burós (15 señales), como techo
+  de referencia. Reporta el lift vs. sin buró y la cobertura por proveedor más el
+  % que no aparece en **ningún** buró (donde el modelo sin buró es la única
+  opción). Nada de esto toca la tabla que se promueve a producción.
 
 ### Copiloto de IA (Gemini 2.5 Flash)
 

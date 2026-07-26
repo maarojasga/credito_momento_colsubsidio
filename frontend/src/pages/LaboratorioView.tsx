@@ -29,9 +29,10 @@ export default function LaboratorioView() {
   const [cargando, setCargando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Fuente de buró (opcional).
+  // Fuente de buró (opcional) + modelo base integral.
   const [buroSel, setBuroSel] = useState("");
   const [buroFile, setBuroFile] = useState<File | null>(null);
+  const [integral, setIntegral] = useState(false);
 
   const refrescar = () => getLabEstado().then(setEstado).catch(() => {});
   useEffect(() => { refrescar(); }, []);
@@ -43,6 +44,7 @@ export default function LaboratorioView() {
         file: hist,
         buroFuente: buroSel || undefined,
         buroFile: buroFile || undefined,
+        integral,
       }));
     } catch (e) {
       setMsg(`Error al entrenar: ${String(e)}`);
@@ -134,12 +136,66 @@ export default function LaboratorioView() {
               </span>
             </div>
           )}
+          <label style={{ marginTop: 14, display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", paddingTop: 14, borderTop: "1px solid var(--gris-linea)" }}>
+            <input type="checkbox" checked={integral} onChange={(e) => setIntegral(e.target.checked)}
+              style={{ marginTop: 3, width: 16, height: 16, accentColor: "var(--azul)" }} />
+            <span style={{ fontSize: 13.5 }}>
+              <b>Modelo base integral</b> — construir el modelo que considera <b>todo</b>: demografía +
+              señales internas + los <b>tres burós</b> (Datacrédito, TransUnion, Experian) como techo de referencia.
+            </span>
+          </label>
         </div>
 
         {msg && <div className="aviso" style={{ marginTop: 12 }}>{msg}</div>}
 
         {exp && (
           <>
+            {/* Modelo base integral (si está activo) */}
+            {exp.integral?.activo && exp.integral.metricas && (
+              <div className="card buro-resultado" style={{ marginTop: 18, borderLeftColor: "var(--tinta)" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                  <h2 style={{ margin: 0 }}>Modelo base integral 🧬</h2>
+                  <span className="pista">
+                    demografía + {exp.integral.n_features} señales · {exp.integral.proveedores?.join(" · ")}
+                  </span>
+                </div>
+                <div className="buro-grid">
+                  <div>
+                    <div className="metric-set" style={{ marginTop: 4 }}>
+                      <TarjetaMetrica titulo="Sin buró (interno)" m={exp.integral.metricas.sin_buro} plano />
+                      <TarjetaMetrica titulo="Base integral (todo)" m={exp.integral.metricas.integral} lift={exp.integral.metricas.lift} plano />
+                    </div>
+                    <div className="buro-cobertura">
+                      🧬 Es el <b>techo</b> con toda la información. Aun así, el{" "}
+                      <b>{exp.integral.sin_ningun_pct}%</b> no aparece en <b>ningún</b> buró —
+                      ahí el modelo sin buró es la única opción.
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Cobertura por proveedor</div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {Object.entries(exp.integral.cobertura_por_proveedor ?? {}).map(([prov, cob]) => (
+                        <div key={prov} style={{ display: "grid", gridTemplateColumns: "110px 1fr 46px", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 13 }}>{prov}</span>
+                          <div style={{ background: "var(--gris-bg)", borderRadius: 6, height: 14, overflow: "hidden" }}>
+                            <div style={{ width: `${cob * 100}%`, height: "100%", background: "var(--azul)" }} />
+                          </div>
+                          <span className="mono" style={{ fontSize: 12, textAlign: "right" }}>{Math.round(cob * 100)}%</span>
+                        </div>
+                      ))}
+                      <div style={{ display: "grid", gridTemplateColumns: "110px 1fr 46px", alignItems: "center", gap: 8, marginTop: 4, paddingTop: 8, borderTop: "1px solid var(--gris-linea)" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>Algún buró</span>
+                        <div style={{ background: "var(--gris-bg)", borderRadius: 6, height: 14, overflow: "hidden" }}>
+                          <div style={{ width: `${(exp.integral.cobertura_algun ?? 0) * 100}%`, height: "100%", background: "var(--tinta)" }} />
+                        </div>
+                        <span className="mono" style={{ fontSize: 12, textAlign: "right", fontWeight: 700 }}>{Math.round((exp.integral.cobertura_algun ?? 0) * 100)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Aporte del buró (si está activo) */}
             {exp.buro?.activo && exp.buro.metricas && (
               <div className="card buro-resultado" style={{ marginTop: 18 }}>
