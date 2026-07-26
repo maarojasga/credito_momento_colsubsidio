@@ -30,6 +30,23 @@ def test_no_se_firma_sin_aceptar(entorno):
         ciclo.firmar("s1")
 
 
+def test_firma_guarda_sello(entorno):
+    ciclo.enviar_campana(["s1"])
+    ciclo.responder("s1", "aceptar")
+    reg = ciclo.firmar("s1", "Ana María Rojas")
+    assert reg["estado"] == "firmada"
+    assert reg["firma"]["nombre"] == "Ana María Rojas"
+    assert len(reg["firma"]["sello"]) == 16
+    assert ciclo.estado("s1")["firma"]["sello"] == reg["firma"]["sello"]
+
+
+def test_correo_simula_sin_smtp(entorno, monkeypatch):
+    from momento import correo
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    r = correo.enviar("ana@example.com", "Hola", "<b>hi</b>")
+    assert r["enviado"] is False and r["simulado"] is True
+
+
 def test_campana_respeta_aceptadas(entorno):
     ciclo.enviar_campana(["s1"])
     ciclo.responder("s1", "aceptar")

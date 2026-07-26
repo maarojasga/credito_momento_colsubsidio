@@ -10,8 +10,10 @@ el demo). Del cliente solo se usa el subject_id; nada de datos personales.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 ESTADOS = ["pendiente", "propuesta_enviada", "aceptada", "firmada", "rechazada"]
@@ -67,13 +69,21 @@ def responder(subject_id: str, accion: str) -> dict:
     return reg
 
 
-def firmar(subject_id: str) -> dict:
-    """Firma del contrato: habilita los extractos mensuales."""
+def firmar(subject_id: str, firmante: str | None = None) -> dict:
+    """Firma electrónica del contrato: habilita el detalle y los extractos.
+
+    Guarda el firmante y un sello de firma (hash del sujeto + nombre + momento),
+    que es la evidencia de la aceptación electrónica (firma digital MVP).
+    """
     data = _cargar()
     reg = data.get(subject_id, {"estado": "pendiente", "historial": []})
     if reg["estado"] not in ("aceptada", "firmada"):
         raise ValueError("solo se firma una propuesta aceptada")
-    reg = {"estado": "firmada", "historial": reg.get("historial", []) + ["firmada"]}
+    nombre = (firmante or "").strip() or "Afiliado Colsubsidio"
+    ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    sello = hashlib.sha256(f"{subject_id}|{nombre}|{ahora}".encode()).hexdigest()[:16].upper()
+    firma = {"nombre": nombre, "fecha": ahora, "sello": sello}
+    reg = {"estado": "firmada", "historial": reg.get("historial", []) + ["firmada"], "firma": firma}
     data[subject_id] = reg
     _guardar(data)
     return reg

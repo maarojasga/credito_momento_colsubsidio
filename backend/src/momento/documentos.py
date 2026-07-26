@@ -201,7 +201,7 @@ def _build(story, right_text) -> bytes:
 
 # --- Contrato -----------------------------------------------------------------
 
-def contrato_pdf(o: dict, man: dict, fecha=(2026, 6, 26)) -> bytes:
+def contrato_pdf(o: dict, man: dict, firma: dict | None = None, fecha=(2026, 6, 26)) -> bytes:
     y, m, d = fecha
     monto, plazo = o["monto"], o["plazo_meses"]
     cuota, plan = _amortizar(monto, plazo)
@@ -266,17 +266,24 @@ def contrato_pdf(o: dict, man: dict, fecha=(2026, 6, 26)) -> bytes:
                  [66 * mm, 50 * mm, 34 * mm, 26 * mm], ["L", "L", "L", "R"]), Spacer(1, 22)]
 
     # Firmas
-    linea = Table([[""]], colWidths=[CW / 2 - 6 * mm], rowHeights=[16 * mm])
-    linea.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.7, TINTA)]))
-    firma = Table([
-        [linea, linea],
+    def _linea(contenido):
+        t = Table([[contenido]], colWidths=[CW / 2 - 6 * mm], rowHeights=[16 * mm])
+        t.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.7, TINTA), ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                               ("LEFTPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+        return t
+
+    nombre_firma = Paragraph(firma["nombre"], _st("sig", 15, AZUL_OSC, "Helvetica-Oblique")) if firma else ""
+    deudor_cap = (f"FIRMADO ELECTRÓNICAMENTE · SELLO {firma['sello']}" if firma
+                  else f"ACEPTACIÓN ELECTRÓNICA · {canal} · {o['hora_envio']}")
+    firma_tbl = Table([
+        [_linea(nombre_firma), _linea("")],
         [Paragraph("<b>Deudor</b>", _st("f", 9.5)), Paragraph("<b>Colsubsidio · Crédito social</b>", _st("f", 9.5))],
-        [Paragraph(f"ACEPTACIÓN ELECTRÓNICA · {canal} · {o['hora_envio']}", _st("fs", 7.5, SUAVE, "Courier")),
+        [Paragraph(deudor_cap, _st("fs", 7.5, SUAVE, "Courier")),
          Paragraph("FIRMA AUTORIZADA", _st("fs", 7.5, SUAVE, "Courier"))],
     ], colWidths=[CW / 2, CW / 2])
-    firma.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 1), (-1, 1), 6),
-                               ("RIGHTPADDING", (0, 0), (-1, -1), 12)]))
-    s += [firma, Spacer(1, 18)]
+    firma_tbl.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 1), (-1, 1), 6),
+                                   ("RIGHTPADDING", (0, 0), (-1, -1), 12)]))
+    s += [firma_tbl, Spacer(1, 18)]
     s += [_caja_manifiesto([
         f"MANIFIESTO DE TRAZABILIDAD {hashdoc}",
         f"REGLAS DURAS EVALUADAS {len(man.get('reglas_evaluadas', []))} · SCORECARD v0.1",

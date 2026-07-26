@@ -149,6 +149,24 @@ curl "$SERVICE_URL/copiloto/estado"   # {"disponible": true, "modelo": "gemini-2
 
 ---
 
+## 1.6. Envío por correo (opcional)
+
+El portal del cliente (links de oferta/contrato/detalle) se puede enviar por
+correo. Sin SMTP configurado, el envío **degrada a simulado** (devuelve el link
+para copiar), así el demo funciona sin credenciales. Para envío real, define en
+Cloud Run:
+
+```bash
+gcloud run services update momento-api --region us-central1 \
+  --update-env-vars SMTP_HOST=smtp.tu-proveedor.com,SMTP_PORT=587,\
+SMTP_USER=usuario,SMTP_PASS=clave,SMTP_FROM=no-reply@tudominio.com
+```
+
+Los links del correo apuntan al frontend; la URL base se toma del navegador del
+operador al enviar (no requiere configuración adicional).
+
+---
+
 ## 2. Frontend en Vercel
 
 Archivo ya incluido: `frontend/vercel.json` (solo el fallback SPA para React

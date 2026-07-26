@@ -59,6 +59,10 @@ afiliados; ver `docs/especificacion.md` §4.1):
   (con plan de pagos y trazabilidad) y extracto mensual, servidos por URL
   (`/subjects/{id}/contrato.pdf`, `/extracto.pdf`) — listos para adjuntarse por
   WhatsApp
+- ✅ Portal del cliente con links por cliente y desbloqueo progresivo: link de
+  oferta → aceptar libera el contrato → firma electrónica (MVP, con sello) libera
+  el detalle con descarga de contrato firmado y extracto. Enviable por correo
+  (SMTP por env, con simulación si no está configurado)
 
 Métrica de pitch obtenida: **contactando el 20% capturamos el 75%** de las
 necesidades reales de crédito.

@@ -49,7 +49,11 @@ export async function cargarExcel(file: File): Promise<ResultadoCarga> {
 
 // --- Ciclo de vida: campaña -> aceptación -> firma -> extractos ---
 
-export interface Ciclo { estado: string; historial: string[] }
+export interface Ciclo {
+  estado: string;
+  historial: string[];
+  firma?: { nombre: string; fecha: string; sello: string };
+}
 export interface CampanaEstado {
   conteo: Record<string, number>;
   total: number;
@@ -78,8 +82,15 @@ export const extractoPdfUrl = (id: string) => `${BASE}/subjects/${id}/extracto.p
 export const enviarCampana = () => post<{ enviadas: number; total: number }>("/campana/enviar");
 export const responderOferta = (id: string, accion: "aceptar" | "rechazar") =>
   post<Ciclo>(`/subjects/${id}/responder`, { accion });
-export const firmarContrato = (id: string) => post<Ciclo>(`/subjects/${id}/firmar`);
+export const firmarContrato = (id: string, firmante?: string) =>
+  post<Ciclo>(`/subjects/${id}/firmar`, { firmante });
 export const reabrirOferta = (id: string) => post<Ciclo>(`/subjects/${id}/reabrir`);
+
+export interface EnvioCorreoRes {
+  enviado: boolean; simulado: boolean; proveedor?: string; error?: string; link: string;
+}
+export const enviarCorreo = (id: string, correo: string, tipo: "oferta" | "contrato", baseUrl: string) =>
+  post<EnvioCorreoRes>(`/subjects/${id}/enviar-correo`, { correo, tipo, base_url: baseUrl });
 
 // --- Laboratorio de Crédito ---
 

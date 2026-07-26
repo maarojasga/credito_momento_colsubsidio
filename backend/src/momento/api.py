@@ -14,7 +14,7 @@ from datetime import date
 from pathlib import Path
 
 import duckdb
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
@@ -174,6 +174,16 @@ class RespuestaCliente(BaseModel):
     accion: str  # "aceptar" | "rechazar"
 
 
+class FirmaBody(BaseModel):
+    firmante: str | None = None
+
+
+class EnvioCorreo(BaseModel):
+    correo: str
+    tipo: str = "oferta"  # "oferta" | "contrato"
+    base_url: str
+
+
 def _subject_ids() -> list[str]:
     con = _open_ro()
     if con is None:
@@ -216,10 +226,10 @@ def ciclo_responder(subject_id: str, body: RespuestaCliente) -> dict:
 
 
 @app.post("/subjects/{subject_id}/firmar")
-def ciclo_firmar(subject_id: str) -> dict:
+def ciclo_firmar(subject_id: str, body: FirmaBody | None = Body(default=None)) -> dict:
     from momento import ciclo
     try:
-        return ciclo.firmar(subject_id)
+        return ciclo.firmar(subject_id, body.firmante if body else None)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -228,6 +238,22 @@ def ciclo_firmar(subject_id: str) -> dict:
 def ciclo_reabrir(subject_id: str) -> dict:
     from momento import ciclo
     return ciclo.reabrir(subject_id)
+
+
+@app.post("/subjects/{subject_id}/enviar-correo")
+def enviar_correo(subject_id: str, body: EnvioCorreo) -> dict:
+    """Envía la oferta o el contrato como link al portal del cliente."""
+    from momento import correo
+    oferta, _ = _oferta_y_manifiesto(subject_id)
+    ruta = "contrato" if body.tipo == "contrato" else "oferta"
+    link = f"{body.base_url.rstrip('/')}/{ruta}/{subject_id}"
+    if body.tipo == "contrato":
+        html, asunto = correo.cuerpo_contrato(oferta, link), "Tu contrato de crédito Colsubsidio"
+    else:
+        html, asunto = correo.cuerpo_oferta(oferta, link), "Tu crédito preaprobado Colsubsidio"
+    res = correo.enviar(body.correo, asunto, html)
+    res["link"] = link
+    return res
 
 
 def _oferta_y_manifiesto(subject_id: str) -> tuple[dict, dict]:
@@ -254,9 +280,10 @@ def _oferta_y_manifiesto(subject_id: str) -> tuple[dict, dict]:
 
 @app.get("/subjects/{subject_id}/contrato.pdf")
 def contrato_pdf(subject_id: str) -> Response:
-    from momento import documentos
+    from momento import ciclo, documentos
     oferta, manifiesto = _oferta_y_manifiesto(subject_id)
-    pdf = documentos.contrato_pdf(oferta, manifiesto)
+    firma = ciclo.estado(subject_id).get("firma")
+    pdf = documentos.contrato_pdf(oferta, manifiesto, firma=firma)
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="contrato_{subject_id}.pdf"'})
 

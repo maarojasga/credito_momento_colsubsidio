@@ -9,7 +9,7 @@ import ManifestDownload from "../components/ManifestDownload";
 import SenalesTop from "../components/SenalesTop";
 import VentanaChart from "../components/VentanaChart";
 import {
-  contratoPdfUrl, extractoPdfUrl, firmarContrato, getCiclo, getManifest,
+  contratoPdfUrl, enviarCorreo, extractoPdfUrl, firmarContrato, getCiclo, getManifest,
   getNarrativaIA, getOferta, reabrirOferta, responderOferta,
 } from "../api/client";
 import type { Manifiesto, Oferta } from "../types";
@@ -77,6 +77,7 @@ export default function AfiliadoView() {
           onFirmar={firmar}
           onReabrir={reabrir}
         />
+        <Compartir subjectId={oferta.subject_id} />
         </div>
 
         {/* --- Respaldo de la decisión --- */}
@@ -206,6 +207,57 @@ function CicloAccion({ estado, subjectId, canal, onResponder, onFirmar, onReabri
         No se genera contrato. La oferta vuelve a evaluarse en la próxima ventana de necesidad, con señales actualizadas.
       </span>
       <span className="ciclo-nota" onClick={onReabrir} style={{ cursor: "pointer" }}>◂ Deshacer respuesta</span>
+    </div>
+  );
+}
+
+function Compartir({ subjectId }: { subjectId: string }) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const [correo, setCorreo] = useState("");
+  const [tipo, setTipo] = useState<"oferta" | "contrato">("oferta");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState("");
+
+  const link = (t: string) => `${origin}/${t}/${subjectId}`;
+  const copiar = (t: string) => {
+    navigator.clipboard?.writeText(link(t));
+    setCopiado(t); setTimeout(() => setCopiado(""), 1500);
+  };
+  const enviar = async () => {
+    if (!correo.trim()) return;
+    setMsg("Enviando…");
+    try {
+      const r = await enviarCorreo(subjectId, correo, tipo, origin);
+      setMsg(r.enviado
+        ? `✓ Correo enviado a ${correo} (${r.proveedor}).`
+        : r.simulado
+          ? `Correo simulado (SMTP sin configurar). El link del ${tipo}: ${r.link}`
+          : `No se pudo enviar: ${r.error ?? "error"}`);
+    } catch (e) { setMsg(`Error: ${String(e)}`); }
+  };
+
+  return (
+    <div className="ciclo-accion">
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>Compartir con el cliente</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+        {(["oferta", "contrato", "detalle"] as const).map((t) => (
+          <button key={t} className="chip" style={{ justifyContent: "space-between" }} onClick={() => copiar(t)}>
+            <span>Link de {t}</span>
+            <span className="mono" style={{ color: "var(--azul)" }}>{copiado === t ? "¡copiado!" : "copiar"}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <select className="buro-select" value={tipo} onChange={(e) => setTipo(e.target.value as "oferta" | "contrato")}
+          style={{ padding: "9px 10px" }}>
+          <option value="oferta">Oferta</option>
+          <option value="contrato">Contrato</option>
+        </select>
+        <input className="firma-input" style={{ flex: 1, padding: "9px 12px", fontSize: 14 }}
+          placeholder="correo@cliente.com" value={correo} onChange={(e) => setCorreo(e.target.value)} />
+        <button className="btn primario" onClick={enviar}>Enviar</button>
+      </div>
+      {msg && <div className="ciclo-nota" style={{ textTransform: "none", letterSpacing: 0, marginTop: 10, wordBreak: "break-all" }}>{msg}</div>}
     </div>
   );
 }
