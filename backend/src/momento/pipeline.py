@@ -128,7 +128,7 @@ def ejecutar_pipeline(con, as_of: date) -> dict:
     categorias = {r[0]: r[1] for r in con.execute("SELECT subject_id, categoria FROM subjects").fetchall()}
     estados = {sid: e for sid, (e, _) in _estado_reciente(con).items()}
 
-    sc = Scorecard()
+    sc = Scorecard.en_produccion()
     ofertas, manifiestos, no_elegibles = [], [], 0
     for sid, fsub in features.items():
         vent = ventanas.get(sid)

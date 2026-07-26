@@ -41,6 +41,17 @@ afiliados; ver `docs/especificacion.md` §4.1):
 - ✅ Reglas duras declarativas + scorecard aditivo + narrativa validada
 - ✅ Política de canal + manifiesto de trazabilidad descargable
 - ✅ API FastAPI + frontend React con identidad Colsubsidio (operador + afiliado)
+- ✅ Copiloto de IA (Gemini 2.5 Flash): narrativa al afiliado, chat de
+  explicabilidad sobre el manifiesto y resumen ejecutivo del lote — grounded y
+  con validador anti-alucinación
+- ✅ Laboratorio de Crédito: aprende los pesos del scorecard con WoE +
+  Information Value + regresión logística, compara campeón (experto) vs retador
+  (aprendido) con AUC/Gini/KS, audita equidad por género y promueve el modelo a
+  producción — todo auditable, sin caja negra
+- ✅ Buró de crédito opcional: conectar (Datacrédito/TransUnion/Experian) o cargar
+  datos de buró, y medir Sin buró vs. Con buró (lift + IV) — mostrando que el
+  buró suma pero no cubre a los afiliados sin historial, donde el modelo sin buró
+  es la única opción
 
 Métrica de pitch obtenida: **contactando el 20% capturamos el 75%** de las
 necesidades reales de crédito.

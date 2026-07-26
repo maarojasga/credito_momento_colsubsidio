@@ -14,9 +14,10 @@ from datetime import date
 from pathlib import Path
 
 import duckdb
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 # Ruta ESCRIBIBLE de la base (en Cloud Run: /tmp). Local: data/synthetic/.
 DB_PATH = os.environ.get("MOMENTO_DB", "data/synthetic/momento.duckdb")
@@ -153,6 +154,167 @@ def get_manifest(subject_id: str) -> dict:
         return json.loads(payload[0])
     finally:
         con.close()
+
+
+# --- Laboratorio de Crédito ---------------------------------------------------
+
+class PromoverModelo(BaseModel):
+    challenger_id: str
+
+
+@app.get("/lab/estado")
+def lab_estado() -> dict:
+    from momento.lab import store
+    return store.estado()
+
+
+@app.post("/lab/entrenar")
+async def lab_entrenar(
+    file: UploadFile | None = File(default=None),
+    buro_fuente: str | None = Form(default=None),
+    buro_file: UploadFile | None = File(default=None),
+) -> dict:
+    """Entrena el retador. Sin archivo usa el histórico sintético etiquetado;
+    con archivo, entrena sobre TU histórico (señales + columna de desenlace).
+
+    Buró OPCIONAL: `buro_fuente` (datacredito/transunion/experian) conecta el
+    buró simulado; `buro_file` carga un archivo de buró. El scorecard de
+    producción sigue siendo sin buró; solo se mide cuánto aportaría."""
+    from momento.lab.dataset import desde_excel
+    from momento.lab.service import correr_experimento
+
+    df = None
+    if file is not None:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp.write(await file.read())
+            ruta = tmp.name
+        try:
+            df = desde_excel(ruta)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        finally:
+            os.unlink(ruta)
+
+    fuente = (buro_fuente or "").strip() or None
+    buro_archivo = None
+    if buro_file is not None:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp.write(await buro_file.read())
+            buro_archivo = tmp.name
+        fuente = fuente or "archivo"
+    try:
+        return correr_experimento(df, buro_fuente=fuente, buro_archivo=buro_archivo)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo entrenar: {e}")
+    finally:
+        if buro_archivo:
+            os.unlink(buro_archivo)
+
+
+@app.post("/lab/promover")
+def lab_promover(body: PromoverModelo) -> dict:
+    from momento.lab import store
+    try:
+        return store.promover(body.challenger_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/lab/revertir")
+def lab_revertir() -> dict:
+    from momento.lab import store
+    return store.revertir()
+
+
+# --- Copiloto de IA (Gemini) --------------------------------------------------
+
+class PreguntaCopiloto(BaseModel):
+    subject_id: str
+    pregunta: str | None = None
+
+
+@app.get("/copiloto/estado")
+def copiloto_estado() -> dict:
+    from momento.copiloto import GEMINI_MODEL, disponible
+    return {"disponible": disponible(), "modelo": GEMINI_MODEL}
+
+
+@app.get("/subjects/{subject_id}/narrativa-ia")
+def narrativa_ia_endpoint(subject_id: str) -> dict:
+    """Genera la narrativa de la oferta con IA (validada), o cae a plantilla."""
+    from momento.copiloto import narrativa_ia
+
+    con = _open_ro()
+    if con is None:
+        raise HTTPException(404, "Aún no hay datos cargados")
+    try:
+        row = con.execute(
+            "SELECT producto, monto, plazo_meses, top_senales FROM ofertas WHERE subject_id = ?",
+            [subject_id],
+        ).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        raise HTTPException(404, "Sujeto sin oferta")
+
+    producto, monto, plazo, top_json = row
+    payload = {
+        "producto": producto,
+        "monto": monto,
+        "plazo_meses": plazo,
+        "senales": json.loads(top_json) if top_json else [],
+    }
+    texto, origen = narrativa_ia(payload)
+    return {"texto": texto, "origen": origen, "validado": True}
+
+
+@app.post("/copiloto/explicar")
+def copiloto_explicar(q: PreguntaCopiloto) -> dict:
+    """Responde una pregunta del operador anclada al manifiesto de la oferta."""
+    from momento.copiloto import explicar
+
+    con = _open_ro()
+    if con is None:
+        raise HTTPException(404, "Aún no hay datos cargados")
+    try:
+        h = con.execute("SELECT manifest_hash FROM ofertas WHERE subject_id = ?",
+                        [q.subject_id]).fetchone()
+        if h is None:
+            raise HTTPException(404, "Sujeto sin oferta")
+        payload = con.execute("SELECT payload FROM manifests WHERE manifest_hash = ?",
+                              [h[0]]).fetchone()
+    finally:
+        con.close()
+    manifiesto = json.loads(payload[0])
+    return {"respuesta": explicar(manifiesto, q.pregunta)}
+
+
+@app.get("/copiloto/resumen")
+def copiloto_resumen() -> dict:
+    """Resumen ejecutivo del lote generado con IA."""
+    from momento.copiloto import resumen_lote
+
+    con = _open_ro()
+    if con is None or not _tiene_ofertas(con):
+        if con:
+            con.close()
+        return {"resumen": "Aún no hay ofertas cargadas."}
+    try:
+        total = con.execute("SELECT count(*) FROM ofertas").fetchone()[0]
+        productos = dict(con.execute(
+            "SELECT nombre_producto, count(*) FROM ofertas GROUP BY 1 ORDER BY 2 DESC").fetchall())
+        canales = dict(con.execute("SELECT canal, count(*) FROM ofertas GROUP BY 1").fetchall())
+        monto_prom = con.execute("SELECT round(avg(monto)) FROM ofertas").fetchone()[0]
+        ventanas = dict(con.execute(
+            "SELECT strftime(ventana_inicio, '%Y-%m') m, count(*) FROM ofertas "
+            "GROUP BY 1 ORDER BY 1").fetchall())
+    finally:
+        con.close()
+    agregados = {"total_ofertas": total, "productos": productos, "canales": canales,
+                 "monto_promedio": monto_prom, "ventanas_por_mes": ventanas}
+    return {"resumen": resumen_lote(agregados), "agregados": agregados}
 
 
 @app.get("/plantilla")

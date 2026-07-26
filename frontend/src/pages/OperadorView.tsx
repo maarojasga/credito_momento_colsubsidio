@@ -1,11 +1,12 @@
-// Vista operador (área de riesgo / negocio): KPIs, métrica de pitch y el lote
-// de ofertas con su ventana, canal y señales. Clic en una fila -> vista afiliado.
+// Vista operador (home): hero, franja de KPIs, métrica estrella, resumen IA y el
+// lote de ofertas. Clic en una fila -> vista afiliado.
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppBar from "../components/AppBar";
 import CargarExcel from "../components/CargarExcel";
 import CoberturaChart from "../components/CoberturaChart";
+import ResumenIA from "../components/ResumenIA";
 import { getMetrics, getOfertas, getStats } from "../api/client";
 import type { ListaOfertas, Metrics, Stats } from "../types";
 import { fmtMes, fmtMoney } from "../utils";
@@ -19,6 +20,13 @@ const PRODUCTOS = [
   { key: "credito_mujer", label: "Crédito Mujer" },
   { key: "rotativo_seguros_impuestos", label: "Rotativo seguros" },
 ];
+
+const PROD_COLOR: Record<string, string> = {
+  libranza: "#0067b1",
+  cupo_rotativo: "#00a499",
+  credito_mujer: "#7b4dc0",
+  rotativo_seguros_impuestos: "#ff6a4d",
+};
 
 export default function OperadorView() {
   const nav = useNavigate();
@@ -37,18 +45,40 @@ export default function OperadorView() {
       .catch((e) => setError(String(e)));
   }, [producto, page]);
 
-  useEffect(() => {
-    refrescar();
-  }, [refrescar]);
+  useEffect(() => { refrescar(); }, [refrescar]);
 
   const vacio = stats !== null && stats.total_ofertas === 0;
 
   return (
     <>
       <AppBar />
-      <div className="contenedor">
+
+      {/* Hero */}
+      <section className="hero">
+        <div className="contenedor" style={{ paddingTop: 16, paddingBottom: 0 }}>
+          <div className="hero-inner">
+            <div className="hero-glow" aria-hidden />
+            <div className="hero-body">
+              <span className="kicker">▸ Reto 01 · Crédito hiperpersonalizado</span>
+              <h1>El crédito correcto, en el momento justo.</h1>
+              <p>
+                Motor de crédito sin buró: detecta cuándo un afiliado va a necesitar crédito, ordena
+                los productos para los que ya es elegible y entrega la oferta por el canal correcto.
+                Todo auditable.
+              </p>
+              <div className="principios">
+                <span>La norma no se aprende</span><span>·</span>
+                <span>La señal es la unidad atómica</span><span>·</span>
+                <span>La explicación se calcula, no se genera</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="contenedor" style={{ paddingTop: 8 }}>
         {error && (
-          <div className="aviso">
+          <div className="aviso" style={{ marginBottom: 20 }}>
             No se pudo conectar con la API ({error}). Verifica que el backend esté arriba.
           </div>
         )}
@@ -68,26 +98,33 @@ export default function OperadorView() {
 
         {stats && !vacio && (
           <>
-            <div className="grid kpis">
-              <Kpi valor={stats.total_ofertas.toLocaleString("es-CO")} etiqueta="Ofertas generadas" />
-              <Kpi valor={fmtMoney(stats.monto_promedio)} etiqueta="Monto promedio" />
-              <Kpi valor={Object.keys(stats.productos).length.toString()} etiqueta="Productos" />
-              <Kpi valor={Object.keys(stats.canales).length.toString()} etiqueta="Canales" />
+            {/* Franja de KPIs */}
+            <div className="kpi-strip">
+              <KpiCol valor={stats.total_ofertas.toLocaleString("es-CO")} etiqueta="Ofertas generadas" color="var(--amarillo)" />
+              <KpiCol valor={fmtMoney(stats.monto_promedio)} etiqueta="Monto promedio" color="var(--azul)" />
+              <KpiCol valor={Object.keys(stats.productos).length.toString()} etiqueta="Productos elegibles" color="var(--amarillo)" />
+              <KpiCol valor={Object.keys(stats.canales).length.toString()} etiqueta="Canales de entrega" color="var(--azul)" />
             </div>
 
             {metrics?.cobertura_contacto && (
-              <div style={{ marginTop: 18 }}>
+              <div style={{ marginTop: 40 }}>
                 <CoberturaChart curva={metrics.cobertura_contacto} />
               </div>
             )}
 
-            <div className="seccion-titulo">
-              <h2>Ofertas del lote</h2>
-              <span className="pista">clic en una fila para ver la experiencia del afiliado</span>
-              <span className="spacer" style={{ flex: 1 }} />
+            <div style={{ marginTop: 20 }}>
+              <ResumenIA />
             </div>
 
-            <div style={{ marginBottom: 16 }}>
+            {/* Lote */}
+            <div className="seccion-titulo">
+              <div>
+                <h2>El lote de ofertas.</h2>
+                <p className="pista" style={{ margin: "12px 0 0" }}>
+                  Clic en una fila para ver la experiencia del afiliado y el respaldo de la decisión.
+                </p>
+              </div>
+              <span className="spacer" />
               <CargarExcel onCargado={refrescar} compacto />
             </div>
 
@@ -96,10 +133,7 @@ export default function OperadorView() {
                 <button
                   key={p.key}
                   className={`chip ${producto === p.key ? "activo" : ""}`}
-                  onClick={() => {
-                    setProducto(p.key);
-                    setPage(0);
-                  }}
+                  onClick={() => { setProducto(p.key); setPage(0); }}
                 >
                   {p.label}
                 </button>
@@ -110,53 +144,60 @@ export default function OperadorView() {
 
         {!vacio && lista && (
           <>
-            <table className="ofertas">
-              <thead>
-                <tr>
-                  <th>Sujeto</th>
-                  <th>Producto</th>
-                  <th>Monto</th>
-                  <th>Ventana</th>
-                  <th>Canal</th>
-                  <th>Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lista.items.map((o) => (
-                  <tr key={o.subject_id} onClick={() => nav(`/afiliado/${o.subject_id}`)}>
-                    <td className="mono">{o.subject_id.slice(0, 12)}…</td>
-                    <td>{o.nombre_producto}</td>
-                    <td>{fmtMoney(o.monto)}</td>
-                    <td>
-                      {fmtMes(o.ventana_inicio)} – {fmtMes(o.ventana_fin)}
-                    </td>
-                    <td>
-                      <span className="badge canal">{o.canal}</span>
-                    </td>
-                    <td>
-                      <span className="badge puntos">{o.puntos_scorecard}</span>
-                    </td>
+            <div className="lote-wrap">
+              <table className="ofertas">
+                <thead>
+                  <tr>
+                    <th>Sujeto</th><th>Producto</th><th>Monto</th>
+                    <th>Ventana</th><th>Canal</th><th style={{ textAlign: "right" }}>Puntos</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {lista.items.map((o) => (
+                    <tr key={o.subject_id} onClick={() => nav(`/afiliado/${o.subject_id}`)}>
+                      <td className="mono">{o.subject_id.slice(0, 12)}…</td>
+                      <td>
+                        <span className="prod-cell">
+                          <span className="prod-dot" style={{ background: PROD_COLOR[o.producto] ?? "#0067b1" }} />
+                          {o.nombre_producto}
+                        </span>
+                      </td>
+                      <td>{fmtMoney(o.monto)}</td>
+                      <td className="mono">{fmtMes(o.ventana_inicio)} – {fmtMes(o.ventana_fin)}</td>
+                      <td><span className="badge canal">{o.canal}</span></td>
+                      <td>
+                        <span className="puntos-cell">
+                          <span className="puntos-bar">
+                            <span style={{ width: `${Math.round((o.puntos_scorecard / 820) * 100)}%` }} />
+                          </span>
+                          <span className="badge puntos">{o.puntos_scorecard}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className="paginador">
-              <button className="btn primario" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                ← Anterior
-              </button>
-              <span>
+              <span className="rango">
                 {page * PAGE + 1}–{Math.min((page + 1) * PAGE, lista.total)} de{" "}
                 {lista.total.toLocaleString("es-CO")}
               </span>
-              <button
-                className="btn primario"
-                disabled={(page + 1) * PAGE >= lista.total}
-                onClick={() => setPage(page + 1)}
-              >
-                Siguiente →
-              </button>
+              <div className="botones">
+                <button className="btn" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  ← Anterior
+                </button>
+                <button className="btn" disabled={(page + 1) * PAGE >= lista.total} onClick={() => setPage(page + 1)}>
+                  Siguiente →
+                </button>
+              </div>
             </div>
+
+            <p className="privacidad">
+              Privacidad · solo se almacena el hash del documento. Nombre, correo y número de
+              documento nunca se guardan. Ninguna señal proviene de un buró de crédito.
+            </p>
           </>
         )}
       </div>
@@ -164,11 +205,12 @@ export default function OperadorView() {
   );
 }
 
-function Kpi({ valor, etiqueta }: { valor: string; etiqueta: string }) {
+function KpiCol({ valor, etiqueta, color }: { valor: string; etiqueta: string; color: string }) {
   return (
-    <div className="card kpi">
-      <div className="valor">{valor}</div>
-      <div className="etiqueta">{etiqueta}</div>
+    <div className="kpi-col">
+      <span className="barra" style={{ background: color }} />
+      <span className="valor">{valor}</span>
+      <span className="etiqueta">{etiqueta}</span>
     </div>
   );
 }

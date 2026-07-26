@@ -154,6 +154,43 @@ PYTHONPATH=src MOMENTO_DB=data/synthetic/momento.duckdb \
 | `GET /ofertas?limit&offset&producto` | lista paginada para el operador |
 | `GET /subjects/{id}/oferta` | oferta del sujeto |
 | `GET /subjects/{id}/manifest` | manifiesto de trazabilidad descargable |
+| `POST /cargar-excel` | sube un Excel de afiliados y corre el pipeline |
+| `GET /plantilla` | descarga la plantilla de Excel |
+| `GET /subjects/{id}/narrativa-ia` | narrativa de la oferta con Gemini (validada) |
+| `POST /copiloto/explicar` | responde preguntas ancladas al manifiesto |
+| `GET /copiloto/resumen` | resumen ejecutivo del lote con IA |
+| `GET /lab/estado` | scorecard en producción (experto o aprendido) |
+| `POST /lab/entrenar` | entrena el retador (histórico sintético o Excel propio) |
+| `POST /lab/promover` | promueve el retador a producción |
+| `POST /lab/revertir` | vuelve al scorecard experto |
+
+### Laboratorio de Crédito (`lab/`)
+
+Convierte la tabla de puntos **experta** (a mano) en una **aprendida** con
+metodología estándar de scoring: `woe.py` calcula Weight-of-Evidence e
+Information Value por bin (mismos cortes que el campeón), `train.py` ajusta una
+regresión logística (`statsmodels`) y la escala a puntos (PDO), `metrics.py` mide
+AUC/Gini/KS, y `service.py` evalúa **campeón vs retador** fuera de muestra más una
+auditoría de **equidad por género**. `store.py` promueve el retador: el pipeline
+lee `Scorecard.en_produccion()` y pasa a usar los pesos aprendidos. Sin
+dependencias nuevas (usa `statsmodels`/`numpy` ya presentes). Para entrenar con
+datos reales, sube un Excel con las columnas de señales + una columna de
+desenlace binario (`resultado`/`pago`/`tomo_credito`).
+
+**Buró opcional (`buro.py`).** El scorecard de producción es *sin buró* (el
+diferenciador: llega a quien no tiene historial). Si se quiere, se conecta un
+buró (conector simulado a Datacrédito/TransUnion/Experian) o se cargan sus datos,
+y el laboratorio mide **Sin buró vs. Con buró** (lift de AUC/Gini/KS), el IV de
+las señales de buró y —clave— qué % de afiliados el buró **no cubre**
+(thin-file). No toca la tabla que se promueve: el buró es potenciador, no núcleo.
+
+### Copiloto de IA (Gemini 2.5 Flash)
+
+`copiloto.py` conecta Gemini para tres cosas: narrativa al afiliado, chat de
+explicabilidad sobre el manifiesto, y resumen ejecutivo del lote. Todo va
+**grounded** al payload/manifiesto y la narrativa pasa por el validador
+determinista (no puede introducir cifras ajenas). Se activa con la variable de
+entorno `GEMINI_API_KEY`; sin ella, degrada a plantilla/aviso.
 
 ## Puesta en marcha completa
 
