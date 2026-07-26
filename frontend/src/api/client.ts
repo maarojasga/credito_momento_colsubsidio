@@ -62,21 +62,32 @@ export interface OpcionesEntrenar {
 }
 
 export async function entrenarModelo(opts: OpcionesEntrenar = {}): Promise<ExperimentoLab> {
-  const req: RequestInit = { method: "POST" };
-  if (opts.file || opts.buroFuente || opts.buroFile || opts.integral) {
-    const form = new FormData();
-    if (opts.file) form.append("file", opts.file);
-    if (opts.buroFuente) form.append("buro_fuente", opts.buroFuente);
-    if (opts.buroFile) form.append("buro_file", opts.buroFile);
-    if (opts.integral) form.append("integral", "true");
-    req.body = form;
+  // Siempre enviamos un form (aunque sea con un campo), así el POST lleva
+  // Content-Type y ningún proxy lo rechaza por venir sin cuerpo.
+  const form = new FormData();
+  form.append("_", "1");
+  if (opts.file) form.append("file", opts.file);
+  if (opts.buroFuente) form.append("buro_fuente", opts.buroFuente);
+  if (opts.buroFile) form.append("buro_file", opts.buroFile);
+  if (opts.integral) form.append("integral", "true");
+
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 90_000);
+  try {
+    const res = await fetch(`${BASE}/lab/entrenar`, { method: "POST", body: form, signal: ctrl.signal });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error((d as { detail?: string }).detail ?? `${res.status} ${res.statusText}`);
+    }
+    return (await res.json()) as ExperimentoLab;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error("La API tardó demasiado en responder. Reintenta en unos segundos.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
   }
-  const res = await fetch(`${BASE}/lab/entrenar`, req);
-  if (!res.ok) {
-    const d = await res.json().catch(() => ({}));
-    throw new Error((d as { detail?: string }).detail ?? `${res.status} ${res.statusText}`);
-  }
-  return res.json() as Promise<ExperimentoLab>;
 }
 
 export async function promoverModelo(challengerId: string): Promise<void> {
