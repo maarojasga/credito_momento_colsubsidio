@@ -173,6 +173,7 @@ async def lab_entrenar(
     file: UploadFile | None = File(default=None),
     buro_fuente: str | None = Form(default=None),
     buro_file: UploadFile | None = File(default=None),
+    integral: bool = Form(default=False),
 ) -> dict:
     """Entrena el retador. Sin archivo usa el histórico sintético etiquetado;
     con archivo, entrena sobre TU histórico (señales + columna de desenlace).
@@ -203,7 +204,7 @@ async def lab_entrenar(
             buro_archivo = tmp.name
         fuente = fuente or "archivo"
     try:
-        return correr_experimento(df, buro_fuente=fuente, buro_archivo=buro_archivo)
+        return correr_experimento(df, buro_fuente=fuente, buro_archivo=buro_archivo, integral=integral)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:

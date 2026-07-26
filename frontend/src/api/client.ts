@@ -58,15 +58,17 @@ export interface OpcionesEntrenar {
   file?: File;
   buroFuente?: string;
   buroFile?: File;
+  integral?: boolean;
 }
 
 export async function entrenarModelo(opts: OpcionesEntrenar = {}): Promise<ExperimentoLab> {
   const req: RequestInit = { method: "POST" };
-  if (opts.file || opts.buroFuente || opts.buroFile) {
+  if (opts.file || opts.buroFuente || opts.buroFile || opts.integral) {
     const form = new FormData();
     if (opts.file) form.append("file", opts.file);
     if (opts.buroFuente) form.append("buro_fuente", opts.buroFuente);
     if (opts.buroFile) form.append("buro_file", opts.buroFile);
+    if (opts.integral) form.append("integral", "true");
     req.body = form;
   }
   const res = await fetch(`${BASE}/lab/entrenar`, req);
@@ -108,6 +110,7 @@ export interface ExperimentoLab {
   comparacion_puntos: { feature: string; bin: string; experto: number; aprendido: number }[];
   equidad: { grupos: { grupo: string; n: number; tasa_aprobacion: number }[]; brecha_pp: number | null };
   buro: BuroReporte;
+  integral: IntegralReporte;
 }
 export interface BuroReporte {
   activo: boolean;
@@ -116,6 +119,15 @@ export interface BuroReporte {
   sin_cobertura_pct?: number;
   iv?: { feature: string; iv: number }[];
   metricas?: { sin_buro: MetricaSet; con_buro: MetricaSet; lift: MetricaSet };
+}
+export interface IntegralReporte {
+  activo: boolean;
+  n_features?: number;
+  proveedores?: string[];
+  cobertura_algun?: number;
+  sin_ningun_pct?: number;
+  cobertura_por_proveedor?: Record<string, number>;
+  metricas?: { sin_buro: MetricaSet; integral: MetricaSet; lift: MetricaSet };
 }
 
 // --- Copiloto de IA (Gemini) ---

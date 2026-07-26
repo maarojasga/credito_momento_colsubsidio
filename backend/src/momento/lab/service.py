@@ -89,12 +89,15 @@ def correr_experimento(
     seed: int = 42,
     buro_fuente: str | None = None,
     buro_archivo: str | None = None,
+    integral: bool = False,
 ) -> dict:
     """Entrena y evalúa. Persiste el retador. Devuelve el reporte completo.
 
-    El scorecard de producción es SIN buró (el diferenciador). Si `buro_fuente`
-    está activo, además se mide cuánto aportaría sumar señales de buró, sin tocar
-    la tabla que se promueve.
+    El scorecard de producción es SIN buró (el diferenciador). Aparte:
+      - `buro_fuente` mide cuánto aporta un proveedor de buró;
+      - `integral` construye el modelo base integral (demografía + internas + los
+        tres burós) como techo/referencia. Nada de esto toca la tabla que se
+        promueve a producción.
     """
     from momento.lab import buro as buro_mod
 
@@ -104,7 +107,9 @@ def correr_experimento(
 
     if buro_fuente:
         df = (buro_mod.desde_excel(buro_archivo, df) if buro_archivo
-              else buro_mod.simular_buro(df, seed=seed))
+              else buro_mod.simular_buro(df, buro_fuente, seed=seed))
+    if integral:
+        df = buro_mod.simular_integral(df, seed=seed)
 
     train_df, test_df = _split(df, seed)
     entrenado = entrenar(train_df)
@@ -140,6 +145,8 @@ def correr_experimento(
         "equidad": _equidad(test_df, tot_ret, cutoff),
         "buro": (buro_mod.evaluar_aporte(train_df, test_df, buro_fuente)
                  if buro_fuente else {"activo": False}),
+        "integral": (buro_mod.evaluar_integral(train_df, test_df)
+                     if integral else {"activo": False}),
         "tabla": tabla_ret,
     }
     store.guardar_retador(reporte)
