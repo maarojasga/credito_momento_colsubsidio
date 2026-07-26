@@ -168,6 +168,68 @@ def get_manifest(subject_id: str) -> dict:
         con.close()
 
 
+# --- Ciclo de vida: campaña -> aceptación -> firma -> extractos ----------------
+
+class RespuestaCliente(BaseModel):
+    accion: str  # "aceptar" | "rechazar"
+
+
+def _subject_ids() -> list[str]:
+    con = _open_ro()
+    if con is None:
+        return []
+    try:
+        return [r[0] for r in con.execute("SELECT subject_id FROM ofertas").fetchall()]
+    finally:
+        con.close()
+
+
+@app.post("/campana/enviar")
+def campana_enviar() -> dict:
+    """Envía la propuesta (+ contrato) a toda la base de clientes del lote."""
+    from momento import ciclo
+    ids = _subject_ids()
+    if not ids:
+        raise HTTPException(404, "No hay ofertas para enviar")
+    return ciclo.enviar_campana(ids)
+
+
+@app.get("/campana/estado")
+def campana_estado() -> dict:
+    from momento import ciclo
+    return ciclo.resumen(_subject_ids())
+
+
+@app.get("/subjects/{subject_id}/ciclo")
+def ciclo_estado(subject_id: str) -> dict:
+    from momento import ciclo
+    return ciclo.estado(subject_id)
+
+
+@app.post("/subjects/{subject_id}/responder")
+def ciclo_responder(subject_id: str, body: RespuestaCliente) -> dict:
+    from momento import ciclo
+    try:
+        return ciclo.responder(subject_id, body.accion)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/subjects/{subject_id}/firmar")
+def ciclo_firmar(subject_id: str) -> dict:
+    from momento import ciclo
+    try:
+        return ciclo.firmar(subject_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/subjects/{subject_id}/reabrir")
+def ciclo_reabrir(subject_id: str) -> dict:
+    from momento import ciclo
+    return ciclo.reabrir(subject_id)
+
+
 # --- Laboratorio de Crédito ---------------------------------------------------
 
 class PromoverModelo(BaseModel):

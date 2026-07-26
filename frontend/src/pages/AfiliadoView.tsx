@@ -2,13 +2,16 @@
 // respaldo de la decisión (cuándo, por qué, trazabilidad).
 
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import AppBar from "../components/AppBar";
 import Copiloto from "../components/Copiloto";
 import ManifestDownload from "../components/ManifestDownload";
 import SenalesTop from "../components/SenalesTop";
 import VentanaChart from "../components/VentanaChart";
-import { getManifest, getNarrativaIA, getOferta } from "../api/client";
+import {
+  firmarContrato, getCiclo, getManifest, getNarrativaIA, getOferta,
+  reabrirOferta, responderOferta,
+} from "../api/client";
 import type { Manifiesto, Oferta } from "../types";
 import { fmtMoney, labelSenal } from "../utils";
 
@@ -18,6 +21,7 @@ export default function AfiliadoView() {
   const [oferta, setOferta] = useState<Oferta | null>(null);
   const [manifiesto, setManifiesto] = useState<Manifiesto | null>(null);
   const [narrativa, setNarrativa] = useState<{ texto: string; origen: string } | null>(null);
+  const [estado, setEstado] = useState<string>("pendiente");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,7 +29,15 @@ export default function AfiliadoView() {
     getOferta(subjectId).then(setOferta).catch((e) => setError(String(e)));
     getManifest(subjectId).then(setManifiesto).catch(() => {});
     getNarrativaIA(subjectId).then(setNarrativa).catch(() => {});
+    getCiclo(subjectId).then((c) => setEstado(c.estado)).catch(() => {});
   }, [subjectId]);
+
+  const responder = async (accion: "aceptar" | "rechazar") => {
+    if (!subjectId) return;
+    setEstado((await responderOferta(subjectId, accion)).estado);
+  };
+  const firmar = async () => { if (subjectId) setEstado((await firmarContrato(subjectId)).estado); };
+  const reabrir = async () => { if (subjectId) setEstado((await reabrirOferta(subjectId)).estado); };
 
   if (error) return <Marco><div className="aviso">No se encontró la oferta ({error}).</div></Marco>;
   if (!oferta) return <Marco><div className="cargando">CARGANDO OFERTA…</div></Marco>;
@@ -35,6 +47,7 @@ export default function AfiliadoView() {
       <div className="volver" onClick={() => nav("/operador")}>◂ Volver al lote</div>
 
       <div className="afiliado-wrap">
+        <div className="col-izq">
         {/* --- Oferta como la ve el afiliado --- */}
         <div className="oferta-card">
           <div className="top">
@@ -53,6 +66,17 @@ export default function AfiliadoView() {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* --- Ciclo: aceptar -> firmar -> documentos --- */}
+        <CicloAccion
+          estado={estado}
+          subjectId={oferta.subject_id}
+          canal={oferta.canal}
+          onResponder={responder}
+          onFirmar={firmar}
+          onReabrir={reabrir}
+        />
         </div>
 
         {/* --- Respaldo de la decisión --- */}
@@ -116,6 +140,73 @@ export default function AfiliadoView() {
 
       <Copiloto subjectId={oferta.subject_id} />
     </Marco>
+  );
+}
+
+function CicloAccion({ estado, subjectId, canal, onResponder, onFirmar, onReabrir }: {
+  estado: string; subjectId: string; canal: string;
+  onResponder: (a: "aceptar" | "rechazar") => void; onFirmar: () => void; onReabrir: () => void;
+}) {
+  // Propuesta pendiente de respuesta.
+  if (estado === "pendiente" || estado === "propuesta_enviada") {
+    return (
+      <div className="ciclo-accion">
+        <div className="fila">
+          <button className="btn primario" onClick={() => onResponder("aceptar")}>Aceptar oferta</button>
+          <button className="btn" onClick={() => onResponder("rechazar")}>No, gracias</button>
+        </div>
+        <div className="ciclo-nota">Respuesta del afiliado por {canal}</div>
+      </div>
+    );
+  }
+  // Aceptada: falta firmar el contrato.
+  if (estado === "aceptada") {
+    return (
+      <div className="ciclo-ok">
+        <div className="cab"><i />Propuesta aceptada · falta firmar</div>
+        <div className="cuerpo">
+          <Link to={`/contrato/${subjectId}`} className="doc-link">
+            <span><span className="t">Revisar contrato</span><br /><span className="s">PDF · CONDICIONES Y PLAN DE PAGOS</span></span>
+            <span className="ir">ABRIR →</span>
+          </Link>
+          <button className="btn primario" onClick={onFirmar}>Firmar contrato</button>
+          <span className="ciclo-nota" onClick={onReabrir} style={{ cursor: "pointer" }}>◂ Deshacer respuesta</span>
+        </div>
+      </div>
+    );
+  }
+  // Firmada: documentos disponibles (contrato + extractos).
+  if (estado === "firmada") {
+    return (
+      <div className="ciclo-ok">
+        <div className="cab"><i />Contrato firmado · desembolso en trámite</div>
+        <div className="cuerpo">
+          <span style={{ fontSize: 13.5, color: "var(--grafito-60)", fontWeight: 500 }}>
+            Los documentos quedaron disponibles en el chat de {canal}.
+          </span>
+          <Link to={`/contrato/${subjectId}`} className="doc-link">
+            <span><span className="t">Contrato de crédito</span><br /><span className="s">PDF · CONDICIONES Y PLAN DE PAGOS</span></span>
+            <span className="ir">ABRIR →</span>
+          </Link>
+          <Link to={`/extracto/${subjectId}`} className="doc-link">
+            <span><span className="t">Extracto mensual</span><br /><span className="s">PDF · CUOTA, SALDO Y MOVIMIENTOS</span></span>
+            <span className="ir">ABRIR →</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  // Rechazada.
+  return (
+    <div className="ciclo-rechazo">
+      <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--rojo)" }}>
+        Oferta rechazada por el afiliado
+      </span>
+      <span style={{ fontSize: 13.5, color: "var(--grafito-60)", fontWeight: 500, lineHeight: 1.5 }}>
+        No se genera contrato. La oferta vuelve a evaluarse en la próxima ventana de necesidad, con señales actualizadas.
+      </span>
+      <span className="ciclo-nota" onClick={onReabrir} style={{ cursor: "pointer" }}>◂ Deshacer respuesta</span>
+    </div>
   );
 }
 

@@ -52,6 +52,10 @@ afiliados; ver `docs/especificacion.md` §4.1):
   datos de buró, y medir Sin buró vs. Con buró (lift + IV) — mostrando que el
   buró suma pero no cubre a los afiliados sin historial, donde el modelo sin buró
   es la única opción
+- ✅ Ciclo de vida post-modelo: al promover un modelo se envía la propuesta + el
+  contrato a la base de clientes; el afiliado acepta y firma, y quedan disponibles
+  los documentos (contrato de crédito y extractos mensuales, imprimibles a PDF).
+  El operador ve el embudo propuesta → aceptación → firma
 
 Métrica de pitch obtenida: **contactando el 20% capturamos el 75%** de las
 necesidades reales de crédito.
