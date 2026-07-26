@@ -1,5 +1,5 @@
 // Laboratorio de Crédito: aprende los pesos del scorecard con WoE + regresión
-// logística, compara campeón vs retador y permite promover a producción.
+// logística, compara campeón vs retador, y —opcional— mide cuánto aporta el buró.
 
 import { useEffect, useState } from "react";
 import AppBar from "../components/AppBar";
@@ -11,7 +11,17 @@ import { labelSenal } from "../utils";
 
 type Estado = { version_produccion: string; hay_promovido: boolean; challenger_id: string | null };
 
-const IV_MAX = 0.35; // referencia visual (IV > 0.3 = señal fuerte)
+const IV_MAX = 0.5; // referencia visual
+const BURO_LABEL: Record<string, string> = {
+  score_buro: "Score de buró",
+  moras_ult_12m: "Moras últ. 12m",
+  nivel_endeudamiento: "Endeudamiento",
+};
+const BUROS = [
+  { id: "datacredito", nombre: "Datacrédito" },
+  { id: "transunion", nombre: "TransUnion" },
+  { id: "experian", nombre: "Experian" },
+];
 
 export default function LaboratorioView() {
   const [estado, setEstado] = useState<Estado | null>(null);
@@ -19,13 +29,21 @@ export default function LaboratorioView() {
   const [cargando, setCargando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // Fuente de buró (opcional).
+  const [buroSel, setBuroSel] = useState("");
+  const [buroFile, setBuroFile] = useState<File | null>(null);
+
   const refrescar = () => getLabEstado().then(setEstado).catch(() => {});
   useEffect(() => { refrescar(); }, []);
 
-  async function entrenar(file?: File) {
+  async function entrenar(hist?: File) {
     setCargando(true); setMsg(null);
     try {
-      setExp(await entrenarModelo(file));
+      setExp(await entrenarModelo({
+        file: hist,
+        buroFuente: buroSel || undefined,
+        buroFile: buroFile || undefined,
+      }));
     } catch (e) {
       setMsg(`Error al entrenar: ${String(e)}`);
     } finally {
@@ -44,6 +62,8 @@ export default function LaboratorioView() {
     setMsg("Revertido al scorecard experto.");
     refrescar();
   }
+
+  const buroActivo = !!buroSel || !!buroFile;
 
   return (
     <>
@@ -82,15 +102,85 @@ export default function LaboratorioView() {
           )}
         </div>
 
+        {/* Fuente de buró (opcional) */}
+        <div className="card buro-card" style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Buró de crédito <span style={{ fontWeight: 400, color: "var(--grafito-60)", fontSize: 13 }}>· opcional</span></h3>
+              <p className="pista" style={{ margin: "4px 0 0" }}>
+                El motor funciona <b>sin buró</b> (llega a quien no tiene historial). Si lo tienes,
+                mide cuánto aporta — sin cambiar el scorecard de producción.
+              </p>
+            </div>
+            <div className="spacer" style={{ flex: 1 }} />
+            <select className="buro-select" value={buroSel}
+              onChange={(e) => { setBuroSel(e.target.value); setBuroFile(null); }}>
+              <option value="">— Sin buró —</option>
+              {BUROS.map((b) => <option key={b.id} value={b.id}>Conectar {b.nombre}</option>)}
+            </select>
+            <label className="btn" style={{ cursor: "pointer" }}>
+              📄 Cargar datos de buró
+              <input type="file" accept=".xlsx,.xls" style={{ display: "none" }}
+                onChange={(e) => { setBuroFile(e.target.files?.[0] ?? null); setBuroSel(""); }} />
+            </label>
+          </div>
+          {buroActivo && (
+            <div style={{ marginTop: 10, fontSize: 13 }}>
+              <span className="legal consentida">
+                {buroFile ? `archivo: ${buroFile.name}` : `conectado: ${BUROS.find((b) => b.id === buroSel)?.nombre}`}
+              </span>{" "}
+              <span style={{ color: "var(--grafito-60)" }}>
+                — al entrenar se añade la comparación “Sin buró vs. Con buró”.
+              </span>
+            </div>
+          )}
+        </div>
+
         {msg && <div className="aviso" style={{ marginTop: 12 }}>{msg}</div>}
 
         {exp && (
           <>
-            {/* Campeón vs Retador */}
+            {/* Aporte del buró (si está activo) */}
+            {exp.buro?.activo && exp.buro.metricas && (
+              <div className="card buro-resultado" style={{ marginTop: 18 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                  <h2 style={{ margin: 0 }}>Aporte del buró</h2>
+                  <span className="pista">Fuente: {exp.buro.fuente}</span>
+                </div>
+                <div className="buro-grid">
+                  <div>
+                    <div className="metric-set" style={{ marginTop: 4 }}>
+                      <TarjetaMetrica titulo="Sin buró (interno)" m={exp.buro.metricas.sin_buro} plano />
+                      <TarjetaMetrica titulo="Con buró (híbrido)" m={exp.buro.metricas.con_buro} lift={exp.buro.metricas.lift} plano />
+                    </div>
+                    <div className="buro-cobertura">
+                      ⚠️ El <b>{exp.buro.sin_cobertura_pct}%</b> de los afiliados <b>no tiene historial en buró</b>.
+                      Para ellos, el modelo sin buró es la única opción — ahí está el diferenciador.
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Poder predictivo del buró (IV)</div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {exp.buro.iv?.map((x) => (
+                        <div key={x.feature} style={{ display: "grid", gridTemplateColumns: "130px 1fr 46px", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 13 }}>{BURO_LABEL[x.feature] ?? x.feature}</span>
+                          <div style={{ background: "var(--gris-bg)", borderRadius: 6, height: 14, overflow: "hidden" }}>
+                            <div style={{ width: `${Math.min(x.iv / IV_MAX, 1) * 100}%`, height: "100%", background: "var(--azul-oscuro)" }} />
+                          </div>
+                          <span className="mono" style={{ fontSize: 12, textAlign: "right" }}>{x.iv.toFixed(3)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Campeón vs Retador (sin buró, el de producción) */}
             <div className="seccion-titulo" style={{ marginTop: 26 }}>
-              <h2 style={{ margin: 0 }}>Campeón vs. Retador</h2>
+              <h2 style={{ margin: 0 }}>Campeón vs. Retador <span style={{ fontSize: 14, fontWeight: 400, color: "var(--grafito-60)" }}>· scorecard de producción (sin buró)</span></h2>
               <span className="pista">
-                Evaluado fuera de muestra ({exp.n_test.toLocaleString("es-CO")} casos de prueba ·
+                Evaluado fuera de muestra ({exp.n_test.toLocaleString("es-CO")} casos ·
                 tasa base {Math.round(exp.base_rate * 100)}%).
               </span>
             </div>
@@ -100,11 +190,11 @@ export default function LaboratorioView() {
             </div>
 
             <div className="lab-grid">
-              {/* Poder predictivo (IV) */}
+              {/* Poder predictivo (IV) interno */}
               <div className="card">
                 <h3>Poder predictivo por señal (Information Value)</h3>
                 <p className="pista" style={{ marginTop: 4 }}>
-                  Cuánto aporta cada base a predecir el desenlace. Referencia: &gt;0,3 fuerte ·
+                  Cuánto aporta cada base interna a predecir el desenlace. &gt;0,3 fuerte ·
                   0,1–0,3 medio · &lt;0,1 débil.
                 </p>
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
@@ -141,7 +231,7 @@ export default function LaboratorioView() {
                 {exp.equidad.brecha_pp != null && (
                   <div style={{ marginTop: 14, fontSize: 14 }}>
                     Brecha de aprobación:{" "}
-                    <b style={{ color: exp.equidad.brecha_pp <= 3 ? "var(--verde, #2e7d32)" : "#c62828" }}>
+                    <b style={{ color: exp.equidad.brecha_pp <= 3 ? "#2e7d32" : "#c62828" }}>
                       {exp.equidad.brecha_pp} pp
                     </b>{" "}
                     {exp.equidad.brecha_pp <= 3 ? "— sin sesgo relevante." : "— requiere revisión."}
@@ -193,11 +283,11 @@ export default function LaboratorioView() {
   );
 }
 
-function TarjetaMetrica({ titulo, m, lift, destacado }: {
-  titulo: string; m: MetricaSet; lift?: MetricaSet; destacado?: boolean;
+function TarjetaMetrica({ titulo, m, lift, destacado, plano }: {
+  titulo: string; m: MetricaSet; lift?: MetricaSet; destacado?: boolean; plano?: boolean;
 }) {
   return (
-    <div className="card" style={destacado ? { borderTop: "4px solid var(--azul)" } : undefined}>
+    <div className={plano ? "" : "card"} style={destacado ? { borderTop: "4px solid var(--azul)" } : undefined}>
       <div style={{ fontSize: 13, color: "var(--grafito-60)", fontWeight: 600 }}>{titulo}</div>
       <div className="metric-set">
         <Metric label="AUC" v={m.auc} d={lift?.auc} />

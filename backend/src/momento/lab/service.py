@@ -84,11 +84,27 @@ def _equidad(df: pd.DataFrame, totales: np.ndarray, cutoff: float) -> dict:
     return {"grupos": filas, "brecha_pp": brecha}
 
 
-def correr_experimento(df: pd.DataFrame | None = None, seed: int = 42) -> dict:
-    """Entrena y evalúa. Persiste el retador. Devuelve el reporte completo."""
+def correr_experimento(
+    df: pd.DataFrame | None = None,
+    seed: int = 42,
+    buro_fuente: str | None = None,
+    buro_archivo: str | None = None,
+) -> dict:
+    """Entrena y evalúa. Persiste el retador. Devuelve el reporte completo.
+
+    El scorecard de producción es SIN buró (el diferenciador). Si `buro_fuente`
+    está activo, además se mide cuánto aportaría sumar señales de buró, sin tocar
+    la tabla que se promueve.
+    """
+    from momento.lab import buro as buro_mod
+
     if df is None:
         df = generar_sintetico(seed=seed)
     df = df.reset_index(drop=True)
+
+    if buro_fuente:
+        df = (buro_mod.desde_excel(buro_archivo, df) if buro_archivo
+              else buro_mod.simular_buro(df, seed=seed))
 
     train_df, test_df = _split(df, seed)
     entrenado = entrenar(train_df)
@@ -122,6 +138,8 @@ def correr_experimento(df: pd.DataFrame | None = None, seed: int = 42) -> dict:
         },
         "comparacion_puntos": _comparar_puntos(entrenado),
         "equidad": _equidad(test_df, tot_ret, cutoff),
+        "buro": (buro_mod.evaluar_aporte(train_df, test_df, buro_fuente)
+                 if buro_fuente else {"activo": False}),
         "tabla": tabla_ret,
     }
     store.guardar_retador(reporte)

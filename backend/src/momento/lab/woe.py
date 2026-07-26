@@ -16,30 +16,30 @@ from momento.scoring.scorecard import CORTES, ETIQUETAS, FEATURES
 MISSING = "faltante"
 
 
-def bin_de(feature: str, valor) -> str:
+def bin_de(feature: str, valor, cortes=CORTES, etiquetas=ETIQUETAS) -> str:
     """Etiqueta de bin para un valor (o 'faltante')."""
     if valor is None or (isinstance(valor, float) and np.isnan(valor)):
         return MISSING
-    for limite, etiqueta in zip(CORTES[feature], ETIQUETAS[feature]):
+    for limite, etiqueta in zip(cortes[feature], etiquetas[feature]):
         if limite is None or valor < limite:
             return etiqueta
-    return ETIQUETAS[feature][-1]
+    return etiquetas[feature][-1]
 
 
-def binizar(df: pd.DataFrame) -> pd.DataFrame:
+def binizar(df: pd.DataFrame, features=FEATURES, cortes=CORTES, etiquetas=ETIQUETAS) -> pd.DataFrame:
     """DataFrame de etiquetas de bin por feature."""
-    return pd.DataFrame({f: df[f].map(lambda v: bin_de(f, v)) for f in FEATURES})
+    return pd.DataFrame({f: df[f].map(lambda v: bin_de(f, v, cortes, etiquetas)) for f in features})
 
 
-def tabla_woe(bins: pd.DataFrame, y: np.ndarray) -> dict:
+def tabla_woe(bins: pd.DataFrame, y: np.ndarray, features=FEATURES, etiquetas=ETIQUETAS) -> dict:
     """Por feature: bins con conteos, WoE e IV. Ajuste de Laplace (0.5) por celda."""
     y = np.asarray(y)
     tot_buenos = max((y == 1).sum(), 1)
     tot_malos = max((y == 0).sum(), 1)
     resultado: dict[str, dict] = {}
 
-    for feature in FEATURES:
-        orden = ETIQUETAS[feature] + [MISSING]
+    for feature in features:
+        orden = etiquetas[feature] + [MISSING]
         filas, iv = [], 0.0
         for et in orden:
             mask = bins[feature].values == et
@@ -60,10 +60,10 @@ def tabla_woe(bins: pd.DataFrame, y: np.ndarray) -> dict:
     return resultado
 
 
-def matriz_woe(bins: pd.DataFrame, woe: dict) -> pd.DataFrame:
+def matriz_woe(bins: pd.DataFrame, woe: dict, features=FEATURES) -> pd.DataFrame:
     """Reemplaza cada etiqueta de bin por su WoE (matriz para la regresión)."""
     out = {}
-    for feature in FEATURES:
+    for feature in features:
         mapa = {fila["bin"]: fila["woe"] for fila in woe[feature]["bins"]}
         out[feature] = bins[feature].map(mapa).fillna(0.0)
     return pd.DataFrame(out)

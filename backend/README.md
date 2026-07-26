@@ -177,6 +177,13 @@ dependencias nuevas (usa `statsmodels`/`numpy` ya presentes). Para entrenar con
 datos reales, sube un Excel con las columnas de señales + una columna de
 desenlace binario (`resultado`/`pago`/`tomo_credito`).
 
+**Buró opcional (`buro.py`).** El scorecard de producción es *sin buró* (el
+diferenciador: llega a quien no tiene historial). Si se quiere, se conecta un
+buró (conector simulado a Datacrédito/TransUnion/Experian) o se cargan sus datos,
+y el laboratorio mide **Sin buró vs. Con buró** (lift de AUC/Gini/KS), el IV de
+las señales de buró y —clave— qué % de afiliados el buró **no cubre**
+(thin-file). No toca la tabla que se promueve: el buró es potenciador, no núcleo.
+
 ### Copiloto de IA (Gemini 2.5 Flash)
 
 `copiloto.py` conecta Gemini para tres cosas: narrativa al afiliado, chat de

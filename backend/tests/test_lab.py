@@ -50,3 +50,22 @@ def test_promover_id_invalido(entorno):
     correr_experimento()
     with pytest.raises(ValueError):
         store.promover("noexiste")
+
+
+def test_buro_aporta_pero_no_cubre_a_todos(entorno):
+    r = correr_experimento(buro_fuente="datacredito")
+    b = r["buro"]
+    assert b["activo"] and b["fuente"] == "Datacrédito"
+    # El buró suma discriminación...
+    assert b["metricas"]["con_buro"]["auc"] > b["metricas"]["sin_buro"]["auc"]
+    assert b["metricas"]["lift"]["auc"] > 0
+    # ...pero no cubre a todos (thin-file): parte de la población sin historial.
+    assert 0 < b["sin_cobertura_pct"] < 60
+    # El score de buró es la señal más predictiva del bloque.
+    iv = {x["feature"]: x["iv"] for x in b["iv"]}
+    assert iv["score_buro"] == max(iv.values())
+
+
+def test_sin_buro_no_incluye_bloque(entorno):
+    r = correr_experimento()
+    assert r["buro"] == {"activo": False}

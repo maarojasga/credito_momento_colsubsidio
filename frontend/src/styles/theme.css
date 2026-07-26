@@ -252,7 +252,18 @@ h1, h2, h3 { color: var(--azul-oscuro); margin: 0; line-height: 1.15; }
 .tabla-pts td { padding: 6px 12px; }
 .tabla-pts th:nth-child(n+3), .tabla-pts td:nth-child(n+3) { text-align: right; }
 @media (max-width: 760px) {
-  .metric-fila, .lab-grid { grid-template-columns: 1fr; }
+  .metric-fila, .lab-grid, .buro-grid { grid-template-columns: 1fr; }
+}
+.buro-card { border-left: 4px solid var(--gris-linea); }
+.buro-select {
+  padding: 9px 12px; border-radius: 9px; border: 1px solid var(--gris-linea);
+  font-size: 14px; background: #fff; cursor: pointer;
+}
+.buro-resultado { border-left: 5px solid var(--azul-oscuro); }
+.buro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 14px; align-items: start; }
+.buro-cobertura {
+  margin-top: 16px; background: #fff8e1; border: 1px solid #ffe082;
+  border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5;
 }
 
 /* ---- Tabla ---- */

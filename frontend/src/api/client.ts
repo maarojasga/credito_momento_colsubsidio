@@ -54,14 +54,22 @@ export const getLabEstado = () =>
     "/lab/estado"
   );
 
-export async function entrenarModelo(file?: File): Promise<ExperimentoLab> {
-  const opts: RequestInit = { method: "POST" };
-  if (file) {
+export interface OpcionesEntrenar {
+  file?: File;
+  buroFuente?: string;
+  buroFile?: File;
+}
+
+export async function entrenarModelo(opts: OpcionesEntrenar = {}): Promise<ExperimentoLab> {
+  const req: RequestInit = { method: "POST" };
+  if (opts.file || opts.buroFuente || opts.buroFile) {
     const form = new FormData();
-    form.append("file", file);
-    opts.body = form;
+    if (opts.file) form.append("file", opts.file);
+    if (opts.buroFuente) form.append("buro_fuente", opts.buroFuente);
+    if (opts.buroFile) form.append("buro_file", opts.buroFile);
+    req.body = form;
   }
-  const res = await fetch(`${BASE}/lab/entrenar`, opts);
+  const res = await fetch(`${BASE}/lab/entrenar`, req);
   if (!res.ok) {
     const d = await res.json().catch(() => ({}));
     throw new Error((d as { detail?: string }).detail ?? `${res.status} ${res.statusText}`);
@@ -99,6 +107,15 @@ export interface ExperimentoLab {
   metricas: { campeon: MetricaSet; retador: MetricaSet; lift: MetricaSet };
   comparacion_puntos: { feature: string; bin: string; experto: number; aprendido: number }[];
   equidad: { grupos: { grupo: string; n: number; tasa_aprobacion: number }[]; brecha_pp: number | null };
+  buro: BuroReporte;
+}
+export interface BuroReporte {
+  activo: boolean;
+  fuente?: string;
+  cobertura?: number;
+  sin_cobertura_pct?: number;
+  iv?: { feature: string; iv: number }[];
+  metricas?: { sin_buro: MetricaSet; con_buro: MetricaSet; lift: MetricaSet };
 }
 
 // --- Copiloto de IA (Gemini) ---

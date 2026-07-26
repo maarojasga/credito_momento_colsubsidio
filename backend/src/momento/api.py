@@ -14,7 +14,7 @@ from datetime import date
 from pathlib import Path
 
 import duckdb
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -169,9 +169,17 @@ def lab_estado() -> dict:
 
 
 @app.post("/lab/entrenar")
-async def lab_entrenar(file: UploadFile | None = File(default=None)) -> dict:
+async def lab_entrenar(
+    file: UploadFile | None = File(default=None),
+    buro_fuente: str | None = Form(default=None),
+    buro_file: UploadFile | None = File(default=None),
+) -> dict:
     """Entrena el retador. Sin archivo usa el histórico sintético etiquetado;
-    con archivo, entrena sobre TU histórico (señales + columna de desenlace)."""
+    con archivo, entrena sobre TU histórico (señales + columna de desenlace).
+
+    Buró OPCIONAL: `buro_fuente` (datacredito/transunion/experian) conecta el
+    buró simulado; `buro_file` carga un archivo de buró. El scorecard de
+    producción sigue siendo sin buró; solo se mide cuánto aportaría."""
     from momento.lab.dataset import desde_excel
     from momento.lab.service import correr_experimento
 
@@ -186,10 +194,23 @@ async def lab_entrenar(file: UploadFile | None = File(default=None)) -> dict:
             raise HTTPException(400, str(e))
         finally:
             os.unlink(ruta)
+
+    fuente = (buro_fuente or "").strip() or None
+    buro_archivo = None
+    if buro_file is not None:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp.write(await buro_file.read())
+            buro_archivo = tmp.name
+        fuente = fuente or "archivo"
     try:
-        return correr_experimento(df)
+        return correr_experimento(df, buro_fuente=fuente, buro_archivo=buro_archivo)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, f"No se pudo entrenar: {e}")
+    finally:
+        if buro_archivo:
+            os.unlink(buro_archivo)
 
 
 @app.post("/lab/promover")
