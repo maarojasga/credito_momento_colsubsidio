@@ -16,6 +16,7 @@ export default function AppBar() {
         <Link to="/laboratorio" className={pathname.startsWith("/laboratorio") ? "activo" : ""}>
           Laboratorio
         </Link>
+        <Link to="/deck" className={pathname.startsWith("/deck") ? "activo" : ""}>Pitch</Link>
         <span className="cobrand">Colsubsidio <span style={{ opacity: 0.5 }}>×</span> <b>30X</b></span>
       </nav>
     </header>

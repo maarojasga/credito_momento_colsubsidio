@@ -322,6 +322,51 @@ table.ofertas tbody tr:hover { background: var(--gris-bg); }
 .firma-preview { font-family: "Segoe Script", "Brush Script MT", cursive; font-size: 30px; color: var(--azul-oscuro); border-bottom: 1px solid var(--tinta); padding: 4px 6px 8px; }
 .firma-check { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--grafito-60); line-height: 1.45; cursor: pointer; }
 .firma-check input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--azul); flex: none; }
+
+/* ---- Deck del pitch ---- */
+.deck { position: fixed; inset: 0; z-index: 100; overflow: hidden; font-family: var(--sans); background: #0a0a0a; }
+.deck-slide { position: absolute; inset: 0; display: flex; align-items: center; padding: 9vh 9vw; opacity: 0; pointer-events: none; transition: opacity .45s ease; cursor: pointer; }
+.deck-slide.activa { opacity: 1; pointer-events: auto; }
+.deck-slide.dark { background: radial-gradient(120% 120% at 15% 15%, #14161a, #0a0a0a 60%); color: #fff; }
+.deck-slide.blue { background: linear-gradient(135deg, #024e88, #0067b1); color: #fff; }
+.deck-slide.light { background: #f4f6f8; color: #0a0a0a; }
+.deck-body { width: 100%; max-width: 1100px; margin: 0 auto; animation: momFade .5s cubic-bezier(.16,1,.3,1) both; }
+.deck-kicker { font-family: var(--mono); font-size: clamp(11px, 1.3vw, 14px); letter-spacing: 0.14em; text-transform: uppercase; color: #ffd000; margin-bottom: 26px; }
+.deck-slide.light .deck-kicker { color: #0067b1; }
+.deck-h1 { color: inherit; font-weight: 800; font-size: clamp(30px, 5vw, 68px); line-height: 1.03; letter-spacing: -0.03em; max-width: 20ch; margin: 0; }
+.deck em { font-style: normal; color: #ffd000; }
+.deck-slide.light em { color: #0067b1; }
+.deck-lead { font-weight: 800; font-size: clamp(24px, 4vw, 54px); letter-spacing: -0.03em; color: #ffd000; margin-top: 20px; }
+.deck-p { font-size: clamp(16px, 1.9vw, 24px); line-height: 1.45; color: rgba(255,255,255,0.82); max-width: 62ch; margin: 26px 0 0; font-weight: 500; }
+.deck-slide.light .deck-p { color: #575756; }
+.deck-firma { position: absolute; bottom: 8vh; left: 9vw; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
+.deck-principios { margin-top: 34px; display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: clamp(11px, 1.2vw, 14px); letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+.deck-chip { border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; padding: 9px 18px; font-weight: 600; font-size: clamp(13px, 1.4vw, 17px); white-space: nowrap; }
+.deck-slide.light .deck-chip { border-color: #d6dae2; background: #fff; }
+.deck-lista { margin: 30px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+.deck-lista li { font-size: clamp(15px, 1.7vw, 21px); font-weight: 500; padding-left: 26px; position: relative; color: #575756; }
+.deck-lista li::before { content: "▸"; position: absolute; left: 0; color: #0067b1; font-weight: 700; }
+.deck-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3vw; margin-top: 2vh; }
+.deck-num { font-weight: 800; font-size: clamp(46px, 8vw, 118px); line-height: 0.9; color: #ffd000; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.deck-numk { font-family: var(--mono); font-size: clamp(11px, 1.2vw, 15px); letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.7); margin-top: 12px; }
+.deck-progress { position: absolute; top: 0; left: 0; height: 3px; background: #ffd000; transition: width .45s ease; z-index: 6; }
+.deck-exit { position: absolute; top: 20px; right: 24px; z-index: 6; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); background: transparent; color: rgba(255,255,255,0.7); cursor: pointer; font-size: 15px; }
+.deck-nav { position: absolute; bottom: 22px; left: 0; right: 0; z-index: 6; display: flex; align-items: center; justify-content: center; gap: 16px; }
+.deck-dots { display: flex; gap: 8px; }
+.deck-dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,0.3); cursor: pointer; transition: background .2s; }
+.deck-dot.on { background: #ffd000; }
+.deck-arrow { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); background: transparent; color: #fff; cursor: pointer; font-size: 18px; }
+.deck-arrow:disabled { opacity: 0.3; cursor: default; }
+.deck-count { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,0.55); }
+.deck[data-variant="light"] .deck-exit, .deck[data-variant="light"] .deck-arrow { color: #0a0a0a; border-color: rgba(10,10,10,0.2); }
+.deck[data-variant="light"] .deck-count { color: #575756; }
+.deck[data-variant="light"] .deck-dot { background: rgba(10,10,10,0.2); }
+.deck[data-variant="light"] .deck-dot.on { background: #0067b1; }
+.deck[data-variant="light"] .deck-progress { background: #0067b1; }
+@media (max-width: 720px) {
+  .deck-nums { grid-template-columns: 1fr; gap: 18px; }
+  .slide-blue-grid { grid-template-columns: 1fr; }
+}
 .oferta-card .top { background: var(--azul); color: #fff; padding: 26px 28px 30px; }
 .oferta-card .top .badge-pre {
   display: inline-block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;

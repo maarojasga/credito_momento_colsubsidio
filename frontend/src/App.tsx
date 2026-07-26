@@ -3,6 +3,7 @@ import OperadorView from "./pages/OperadorView";
 import AfiliadoView from "./pages/AfiliadoView";
 import LaboratorioView from "./pages/LaboratorioView";
 import { PortalOferta, PortalContrato, PortalDetalle } from "./pages/Portal";
+import Deck from "./pages/Deck";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/oferta/:subjectId" element={<PortalOferta />} />
       <Route path="/contrato/:subjectId" element={<PortalContrato />} />
       <Route path="/detalle/:subjectId" element={<PortalDetalle />} />
+      <Route path="/deck" element={<Deck />} />
     </Routes>
   );
 }
